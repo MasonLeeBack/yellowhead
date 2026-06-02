@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -z "${PS3SDK_PPU_BIN_WIN:-}" ]; then
+    echo "PS3SDK_PPU_BIN_WIN is not set. Run: source config/toolchain.env" >&2
+    exit 1
+fi
+
+TOOL="$1"
+shift
+
+exec wine "$PS3SDK_PPU_BIN_WIN/$TOOL.exe" "$@"
