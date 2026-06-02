@@ -532,7 +532,12 @@ def write_asm(asm_path: Path, elf_path: Path, entry: int, items: list[Item]) -> 
         out.write(".global __entry\n")
         out.write(f".set __entry, 0x{entry:x}\n\n")
 
+        
+
         for item in items:
+            if item.source_section is not None and item.source_section.name == ".text":
+                continue
+
             if item.is_noload:
                 continue
 
@@ -599,7 +604,25 @@ def write_linker_script(
             else:
                 out.write(f"  {item.name} 0x{item.addr:x} :\n")
                 out.write("  {\n")
-                out.write(f"    KEEP(*({item.asm_section}))\n")
+
+                if item.source_section is not None and item.source_section.name == ".text":
+                    text_layout = ROOT / "build" / "text_layout.ldinc"
+
+                    if not text_layout.exists():
+                        raise RuntimeError(
+                            "build/text_layout.ldinc does not exist. "
+                            "Run tools/prepare_text_split.py before prepare_sections.py."
+                        )
+
+                    with text_layout.open("r") as inc:
+                        for line in inc:
+                            if line.strip().startswith("/*"):
+                                continue
+                            if line.strip():
+                                out.write(line)
+                else:
+                    out.write(f"    KEEP(*({item.asm_section}))\n")
+
                 out.write(f"  }} {phdr_part}\n\n")
 
         out.write("}\n")

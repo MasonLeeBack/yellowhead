@@ -11,6 +11,8 @@ ORIG_ELF := orig/EBOOT.ELF
 REBUILT  := build/EBOOT.relinked.elf
 SECTION_RAW := build/EBOOT.sections.raw.elf
 SECTION_REBUILT := build/EBOOT.sections.elf
+TEXT_ASM := asm/text/text_blobs.s
+TEXT_OBJ := build/text_blobs.o
 
 .PHONY: all clean toolcheck info compare
 
@@ -39,18 +41,25 @@ $(REBUILT): build/blob_segments.o build/linker.ld
 sections: $(SECTION_REBUILT)
 	$(PYTHON) tools/compare_loads.py $(ORIG_ELF) $(SECTION_REBUILT)
 
-asm/section_blobs.s build/linker_sections.ld: tools/prepare_sections.py $(ORIG_ELF)
+asm/section_blobs.s build/linker_sections.ld: tools/prepare_sections.py $(ORIG_ELF) build/text_layout.ldinc
 	$(PYTHON) tools/prepare_sections.py $(ORIG_ELF)
 
-build/section_blobs.o: asm/section_blobs.s
+build/section_blobs.o: asm/section_blobs.s $(TEXT_ASM)
 	@mkdir -p build
-	. ./config/toolchain.env && $(AS) -mppc64 -o $@ $<
+	. ./config/toolchain.env && $(AS) -mppc64 -o $@ asm/section_blobs.s
 
-$(SECTION_RAW): build/section_blobs.o build/linker_sections.ld
-	. ./config/toolchain.env && $(LD) -T build/linker_sections.ld -o $@ build/section_blobs.o
+$(SECTION_RAW): build/section_blobs.o $(TEXT_OBJ) build/linker_sections.ld build/text_layout.ldinc
+	. ./config/toolchain.env && $(LD) -T build/linker_sections.ld -o $@ build/section_blobs.o $(TEXT_OBJ)
 
 $(SECTION_REBUILT): $(SECTION_RAW) tools/finalize_ps3_elf.py
 	$(PYTHON) tools/finalize_ps3_elf.py $(ORIG_ELF) $(SECTION_RAW) $(SECTION_REBUILT)
+
+$(TEXT_ASM) build/text_functions.tsv build/text_layout.ldinc: tools/prepare_text_split.py $(ORIG_ELF)
+	$(PYTHON) tools/prepare_text_split.py $(ORIG_ELF)
+
+$(TEXT_OBJ): $(TEXT_ASM)
+	@mkdir -p build
+	. ./config/toolchain.env && $(AS) -mppc64 -o $@ $<
 
 compare: $(REBUILT)
 	$(PYTHON) tools/compare_loads.py $(ORIG_ELF) $(REBUILT)
