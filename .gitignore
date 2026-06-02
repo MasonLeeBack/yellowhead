@@ -1,6 +1,7 @@
 orig/
 build/
 sdk/
+asm/*
 *.o
 *.elf
 *.self
