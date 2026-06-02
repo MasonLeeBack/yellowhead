@@ -1,0 +1,5 @@
+
+bool IsKioskDemo()
+{
+    return false;
+}

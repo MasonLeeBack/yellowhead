@@ -621,9 +621,22 @@ def write_linker_script(
                             if line.strip():
                                 out.write(line)
                 else:
-                    out.write(f"    KEEP(*({item.asm_section}))\n")
+                    out.write(f'    KEEP("build/section_blobs.o"({item.asm_section}))\n')
 
                 out.write(f"  }} {phdr_part}\n\n")
+
+        out.write("  /DISCARD/ :\n")
+        out.write("  {\n")
+        out.write("    *(.opd)\n")
+        out.write("    *(.opd.*)\n")
+        out.write("    *(.toc*)\n")
+        out.write("    *(.got2)\n")
+        out.write("    *(.eh_frame)\n")
+        out.write("    *(.eh_frame_hdr)\n")
+        out.write("    *(.gcc_except_table*)\n")
+        out.write("    *(.comment)\n")
+        out.write("    *(.note*)\n")
+        out.write("  }\n\n")
 
         out.write("}\n")
 
