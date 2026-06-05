@@ -209,15 +209,15 @@ u32 MultiByteStringLength_Bytes(const tchar_t* start, const tchar_t* end)
     return MultiByteStringLength_Chars((const char*)start, (const char*)end);
 }
 
-bool CheckHashString(const char* str)
+bool CheckHashString(const char* string)
 {
-    if (*str == '#')
-        ++str;
     for (u32 i = 0; i != 40; ++i) {
-        if (!isxdigit((unsigned char)str[i]))
+        if (!isxdigit(string[i]))
             return false;
     }
-    return str[40] == 0;
+    if (string[40])
+        return false;
+    return true;
 }
 
 bool CheckFloatString(const char* str)
