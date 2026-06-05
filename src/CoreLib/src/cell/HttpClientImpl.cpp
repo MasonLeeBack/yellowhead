@@ -2,7 +2,12 @@
 
 #include <cell/atomic.h>
 
-u32 GNumHTTPTaskBaseWorkers;
+volatile u32 GNumHTTPTaskBaseWorkers;
+CCriticalSec LibHTTPCS;
+CHTTPClient* GHTTPClient;
+bool LibHTTPInited;
+void* LibHTTPPool;
+void* LibSSLPool;
 
 u32 GetNumHTTPTaskBaseWorkers()
 {
@@ -11,10 +16,10 @@ u32 GetNumHTTPTaskBaseWorkers()
 
 CHttpWorkCounter::CHttpWorkCounter()
 {
-    cellAtomicIncr32(&GNumHTTPTaskBaseWorkers);
+    cellAtomicIncr32((u32*)&GNumHTTPTaskBaseWorkers);
 }
 
 CHttpWorkCounter::~CHttpWorkCounter()
 {
-    cellAtomicDecr32(&GNumHTTPTaskBaseWorkers);
+    cellAtomicDecr32((u32*)&GNumHTTPTaskBaseWorkers);
 }
