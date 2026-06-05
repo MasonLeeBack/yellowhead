@@ -16,6 +16,8 @@ make objdiff-report
 
 That writes `build/report.json` and prints the current report. The report totals are corrected against the full original ELF, while the interactive objdiff config only lists real source objects so the GUI stays responsive.
 
+The generated objdiff config uses `tools/objdiff-make` as its build command. It delegates selected-object builds to `make`, but a no-argument GUI build request is a no-op so opening or refreshing objdiff does not accidentally run the full default rebuild.
+
 ```sh
 make objdiff-objects
 make objdiff-functions UNIT=CoreLib/src/Clock.o

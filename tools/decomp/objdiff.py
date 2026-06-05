@@ -657,7 +657,7 @@ def build_objdiff_config(root: Path, source_objs: list[Path]) -> dict[str, objec
         )
 
     return {
-        "custom_make": "make",
+        "custom_make": "./tools/objdiff-make",
         "build_base": True,
         "build_target": False,
         "watch_patterns": [
