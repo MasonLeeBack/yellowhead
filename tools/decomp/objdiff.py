@@ -681,7 +681,7 @@ def build_objdiff_config(root: Path, source_objs: list[Path], include_unaccounte
     return {
         "custom_make": "make",
         "build_base": True,
-        "build_target": True,
+        "build_target": False,
         "watch_patterns": [
             "src/**/*.cpp",
             "src/**/*.c",
