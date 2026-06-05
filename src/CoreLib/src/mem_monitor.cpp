@@ -74,6 +74,23 @@ bool CCircularBuffer::TryWrite(const void* data, u32 size)
     return true;
 }
 
+void CCircularBuffer::FlushToDisk(int handle)
+{
+    while (NumBytes != 0) {
+        u32 bytes_required = NumBytes;
+        u32 count = BufferSize - ReadPos;
+        if (bytes_required < count)
+            count = bytes_required;
+
+        FileWrite(handle, Buffer + ReadPos, count);
+        ReadPos += count;
+        NumBytes -= count;
+
+        if (ReadPos >= BufferSize)
+            ReadPos = 0;
+    }
+}
+
 namespace HeapMon {
 
 void OnNamedEvent(const char* event)
