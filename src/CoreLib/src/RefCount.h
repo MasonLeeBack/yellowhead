@@ -42,4 +42,17 @@ private:
     T* Ref;
 };
 
+typedef void (*RemoveRefFunc)(void*);
+
+struct StaticCPForm {
+    void* Ref;
+    RemoveRefFunc RemoveRefPtr;
+    StaticCPForm* NextPtr;
+};
+
+extern StaticCPForm* GStaticCPHead;
+
+void CleanupStaticCP();
+
 typedef char check_base_counted_size[sizeof(CBaseCounted) == 0x8 ? 1 : -1];
+typedef char check_static_cp_form_size[sizeof(StaticCPForm) == 0xc ? 1 : -1];
