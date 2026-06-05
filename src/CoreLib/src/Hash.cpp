@@ -1,3 +1,4 @@
+#include "BranchList.h"
 #include "Hash.h"
 
 static inline u32 rot(u32 x, u32 k)
