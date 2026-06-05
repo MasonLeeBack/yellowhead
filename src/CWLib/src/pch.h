@@ -3,7 +3,7 @@
 #include "types.h"
 #include "Allocator.h"
 #include "thread.h"
-#include "clock.h"
+#include "Clock.h"
 #include "DebugLog.h"
 #include "DebugRegistry.h"
 #include "DebugVariable.h"

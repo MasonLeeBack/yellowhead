@@ -139,7 +139,7 @@ build/objdiff/orig/%.o: build/objdiff/orig/%.s
 	@mkdir -p $(dir $@)
 	@$(CC) -c $(ASMFLAGS) -o $@ $<
 
-build/objdiff/orig/%.s: objdiff.json build/objdiff/targets.json
+build/objdiff/orig/%.s: | objdiff.json build/objdiff/targets.json
 	@test -f $@
 
 OBJDIFF_ORIG_OBJS := $(patsubst build/src/%.o,build/objdiff/orig/%.o,$(SRC_OBJS))
