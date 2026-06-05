@@ -124,14 +124,7 @@ const wchar_t* MultiByteToWChar_(wchar_t* dst, const char* start, const char* en
 
 const tchar_t* MultiByteToTChar_(tchar_t* dst, const char* start, const char* end, u32 count, u32* written)
 {
-    u32 n = 0;
-    while (n + 1 < count && start != end && *start)
-        dst[n++] = (unsigned char)*start++;
-    if (count)
-        dst[n] = 0;
-    if (written)
-        *written = n;
-    return dst;
+    return (const tchar_t*)MultiByteToWChar_((wchar_t*)dst, start, end, count, written);
 }
 
 const char* WCharToMultiByte_(char* dst, const wchar_t* start, const wchar_t* end, u32 count, u32* written)
@@ -173,14 +166,7 @@ const char* WCharToMultiByte_(char* dst, const wchar_t* start, const wchar_t* en
 
 const char* TCharToMultiByte_(char* dst, const tchar_t* start, const tchar_t* end, u32 count, u32* written)
 {
-    u32 n = 0;
-    while (n + 1 < count && start != end && *start)
-        dst[n++] = (char)*start++;
-    if (count)
-        dst[n] = 0;
-    if (written)
-        *written = n;
-    return dst;
+    return WCharToMultiByte_(dst, (const wchar_t*)start, (const wchar_t*)end, count, written);
 }
 
 u32 MultiByteStringLength_Chars(const char* start, const char* end)
@@ -286,14 +272,23 @@ size_t StringAppend(tchar_t* dst, const tchar_t* src, size_t dst_size) { return 
 
 size_t FormatStringVarArg(char* dst, size_t dst_size, const char* fmt, va_list args)
 {
+    char* end = dst + dst_size - 1;
+    *end = 0;
     int len = vsnprintf(dst, dst_size, fmt, args);
-    return len < 0 ? 0 : (size_t)len;
+    *end = 0;
+    return (size_t)len;
 }
 
 size_t FormatStringVarArg(wchar_t* dst, size_t dst_size, const wchar_t* fmt, va_list args)
 {
+    wchar_t* end = dst + dst_size - 1;
+    *end = 0;
     int len = vswprintf(dst, dst_size, fmt, args);
-    return len < 0 ? 0 : (size_t)len;
+    size_t out = (size_t)-1;
+    if (*end == 0)
+        out = (size_t)len;
+    *end = 0;
+    return out;
 }
 
 size_t FormatStringVarArg(tchar_t* dst, size_t dst_size, const tchar_t* fmt, va_list args)
