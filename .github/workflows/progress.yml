@@ -1,0 +1,106 @@
+name: Progress Report
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  report:
+    name: Generate objdiff progress report
+    runs-on: ubuntu-latest
+    env:
+      ASSETS_REPO: ${{ secrets.YELLOWHEAD_ASSETS_REPO }}
+      ASSETS_REF: ${{ secrets.YELLOWHEAD_ASSETS_REF }}
+      PYTHON: python3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout private build assets
+        if: env.ASSETS_REPO != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ASSETS_REPO }}
+          ref: ${{ env.ASSETS_REF || 'main' }}
+          token: ${{ secrets.YELLOWHEAD_ASSETS_TOKEN }}
+          path: .yellowhead-assets
+
+      - name: Install private build assets
+        if: env.ASSETS_REPO != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a .yellowhead-assets/orig ./
+          cp -a .yellowhead-assets/sdk ./
+          if [ -d .yellowhead-assets/tools/agents ]; then
+            mkdir -p tools/agents
+            cp -a .yellowhead-assets/tools/agents/. tools/agents/
+            chmod +x tools/agents/* || true
+          fi
+
+      - name: Install Python dependencies
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Check report inputs
+        id: inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for path in \
+            orig/EBOOT.ELF \
+            sdk/host-win32/ppu/bin/ppu-lv2-g++.exe \
+            tools/agents/objdiff-cli-linux-x86_64
+          do
+            if [ ! -e "$path" ]; then
+              echo "missing: $path" | tee -a "$GITHUB_STEP_SUMMARY"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 0 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo
+              echo "Progress report skipped because private build inputs were not available."
+              echo "Configure YELLOWHEAD_ASSETS_REPO and YELLOWHEAD_ASSETS_TOKEN to enable this job on GitHub-hosted runners."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install Wine
+        if: steps.inputs.outputs.available == 'true'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y wine32 wine64
+
+      - name: Generate progress report
+        if: steps.inputs.outputs.available == 'true'
+        run: make objdiff-report
+
+      - name: Summarize progress
+        if: steps.inputs.outputs.available == 'true'
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          report = json.load(open("build/report.json"))
+          measures = report["measures"]
+          print("## Progress")
+          print()
+          print(f"Code: {int(measures['matched_code']):,} / {int(measures['total_code']):,} bytes ({measures['matched_code_percent']:.6f}%)")
+          print(f"Data: {int(measures['matched_data']):,} / {int(measures['total_data']):,} bytes ({measures['matched_data_percent']:.6f}%)")
+          print(f"Functions: {int(measures['matched_functions']):,} / {int(measures['total_functions']):,} ({measures['matched_functions_percent']:.6f}%)")
+          PY
+
+      - name: Upload report
+        if: steps.inputs.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: objdiff-report
+          path: |
+            build/report.json
+            objdiff.json
