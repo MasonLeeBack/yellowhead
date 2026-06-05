@@ -506,7 +506,10 @@ def write_original_object_asm(image: ElfImage, root: Path, source_obj: Path, asm
     symbols = source_text_symbols(source_obj, nm)
     orig = original_symbol_map(image)
     branch_symbols = original_branch_symbol_map(image)
-    orig.update(dwarf_subprogram_symbols(image, source_path_for_obj(root, source_obj)))
+    dwarf_symbols = dwarf_subprogram_symbols(image, source_path_for_obj(root, source_obj))
+    orig.update(dwarf_symbols)
+    for symbol in dwarf_symbols:
+        symbols.setdefault(symbol, section_for_symbol(symbol))
     branch_symbols.update({sym.addr: sym.name for sym in orig.values()})
     branch_symbols.update(original_stub_symbol_map(image, branch_symbols))
     relocs = source_relocations(source_obj)
