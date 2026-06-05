@@ -43,16 +43,23 @@ static inline __attribute__((always_inline)) s32 StringCompareNT(const T* lhs, c
 template <typename T>
 size_t StringCopy(T* dst, const T* src, size_t dst_size)
 {
-    size_t written = 0;
-    if (!dst_size)
-        return StringLengthT(src);
+    const T* start = src;
+    const T* cur = src;
+    T* out = dst;
 
-    while (written + 1 < dst_size && src[written]) {
-        dst[written] = src[written];
-        ++written;
+    if (dst_size != 0) {
+        while (--dst_size != 0) {
+            T ch = *cur++;
+            *out++ = ch;
+            if (ch == 0)
+                return cur - start - 1;
+        }
+        *out = 0;
     }
-    dst[written] = 0;
-    return written + StringLengthT(src + written);
+
+    while (*cur++ != 0) {
+    }
+    return cur - start - 1;
 }
 
 template <typename T>
