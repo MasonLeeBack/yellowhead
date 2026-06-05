@@ -84,13 +84,41 @@ static inline __attribute__((always_inline)) const T* StringFindT(const T* str, 
 
 const wchar_t* MultiByteToWChar_(wchar_t* dst, const char* start, const char* end, u32 count, u32* written)
 {
-    u32 n = 0;
-    while (n + 1 < count && start != end && *start)
-        dst[n++] = (unsigned char)*start++;
-    if (count)
-        dst[n] = 0;
+    wchar_t* out = dst;
+    const u8* u8str = (const u8*)start;
+    const u8* u8str_end = (const u8*)end;
+
+    if (count != 0 && u8str < u8str_end) {
+        --count;
+        while (count != 0 && u8str < u8str_end) {
+            u8 ch = *u8str;
+            if ((s8)ch >= 0) {
+                ++u8str;
+                *out++ = ch;
+            } else if (ch <= 0xdf) {
+                ++u8str;
+                *out = ((ch & 0x1f) << 6) | (u8str[0] & 0x3f);
+                if (u8str[0] == 0)
+                    break;
+                ++u8str;
+                ++out;
+            } else {
+                ++u8str;
+                *out = ((ch & 0x0f) << 12) | ((u8str[0] & 0x3f) << 6) | (u8str[1] & 0x3f);
+                if (u8str[0] == 0)
+                    break;
+                ++u8str;
+                if (u8str[0] == 0)
+                    break;
+                ++u8str;
+                ++out;
+            }
+            --count;
+        }
+    }
+    *out = 0;
     if (written)
-        *written = n;
+        *written = out - dst + 1;
     return dst;
 }
 
@@ -108,13 +136,38 @@ const tchar_t* MultiByteToTChar_(tchar_t* dst, const char* start, const char* en
 
 const char* WCharToMultiByte_(char* dst, const wchar_t* start, const wchar_t* end, u32 count, u32* written)
 {
-    u32 n = 0;
-    while (n + 1 < count && start != end && *start)
-        dst[n++] = (char)*start++;
-    if (count)
-        dst[n] = 0;
+    char* out = dst;
+
+    if (count != 0 && start < end) {
+        --count;
+        while (count != 0 && start < end) {
+            u32 ch = *start;
+            if (ch <= 0x7f) {
+                *out++ = ch;
+                ++start;
+                --count;
+            } else if (ch <= 0x7ff) {
+                if (count < 2)
+                    break;
+                *out++ = (ch >> 6) | 0xc0;
+                *out++ = (ch & 0x3f) | 0x80;
+                ++start;
+                count -= 2;
+            } else {
+                if (count < 3)
+                    break;
+                *out++ = (ch >> 12) | 0xe0;
+                *out++ = ((ch >> 6) & 0x3f) | 0x80;
+                *out++ = (ch & 0x3f) | 0x80;
+                ++start;
+                count -= 3;
+            }
+        }
+    }
+
+    *out = 0;
     if (written)
-        *written = n;
+        *written = out - dst + 1;
     return dst;
 }
 
@@ -304,48 +357,52 @@ bool SCompareIgnoreCase::operator()(const MMString<char>& lhs, const MMString<ch
 
 const wchar_t* MultiByteToWChar(MMString<wchar_t>& out, const char* start, const char* end)
 {
-    wchar_t tmp[1024];
-    u32 written;
-    MultiByteToWChar_(tmp, start, end, 1024, &written);
-    out.assign(tmp, written);
+    if (end == 0)
+        end = start + StringLength(start);
+
+    u32 destlen = MultiByteStringLength_Chars(start, end) + 1;
+    out.resize(destlen, 0);
+    MultiByteToWChar_(out.begin(), start, end, destlen, &destlen);
+    if (destlen != 0)
+        --destlen;
+    out.resize(destlen, 0);
     return out.c_str();
 }
 
 const tchar_t* MultiByteToTChar(MMString<tchar_t>& out, const char* start, const char* end)
 {
-    tchar_t tmp[1024];
-    u32 written;
-    MultiByteToTChar_(tmp, start, end, 1024, &written);
-    out.assign(tmp, written);
-    return out.c_str();
+    return (const tchar_t*)MultiByteToWChar((MMString<wchar_t>&)out, start, end);
 }
 
 void WCharToMultiByteAppend(MMString<char>& out, const wchar_t* start, const wchar_t* end)
 {
-    char tmp[1024];
-    u32 written;
-    WCharToMultiByte_(tmp, start, end, 1024, &written);
-    out.assign(tmp, written);
+    if (end == 0)
+        end = start + StringLength(start);
+
+    u32 oldlen = out.size();
+    u32 destlen = MultiByteStringLength_Bytes(start, end) + 1;
+    out.resize(oldlen + destlen, 0);
+    WCharToMultiByte_(out.begin() + oldlen, start, end, destlen, &destlen);
+    if (destlen != 0)
+        --destlen;
+    out.resize(oldlen + destlen, 0);
 }
 
 void TCharToMultiByteAppend(MMString<char>& out, const tchar_t* start, const tchar_t* end)
 {
-    char tmp[1024];
-    u32 written;
-    TCharToMultiByte_(tmp, start, end, 1024, &written);
-    out.assign(tmp, written);
+    WCharToMultiByteAppend(out, (const wchar_t*)start, (const wchar_t*)end);
 }
 
 const char* WCharToMultiByte(MMString<char>& out, const wchar_t* start, const wchar_t* end)
 {
+    out.resize(0, 0);
     WCharToMultiByteAppend(out, start, end);
     return out.c_str();
 }
 
 const char* TCharToMultiByte(MMString<char>& out, const tchar_t* start, const tchar_t* end)
 {
-    TCharToMultiByteAppend(out, start, end);
-    return out.c_str();
+    return WCharToMultiByte(out, (const wchar_t*)start, (const wchar_t*)end);
 }
 
 template size_t StringCopy<char>(char*, const char*, size_t);

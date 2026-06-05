@@ -55,6 +55,7 @@ public:
     size_type capacity() const;
     bool empty() const;
     void clear();
+    void resize(u32 length, T ch);
 
     const_iterator begin() const;
     iterator begin();
