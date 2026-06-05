@@ -18,7 +18,6 @@ DW_OP_ADDR = 0x03
 NOP = 0x60000000
 TOC_RESTORE_R2_40 = 0xE8410028
 TOC_SAVE_R2_40 = 0xF8410028
-UNACCOUNTED_UNIT = "__unaccounted.o"
 
 
 @dataclass(frozen=True)
@@ -280,12 +279,20 @@ def dwarf_address_for_source_symbol(addresses: dict[str, int], name: str) -> int
 
 
 def dwarf_compile_unit(image: ElfImage, source_rel: str):
-    dwarf = image.elf.get_dwarf_info()
-    for cu in dwarf.iter_CUs():
-        top = cu.get_top_DIE()
-        name = dwarf_string(top.attributes.get("DW_AT_name")) or ""
-        normalized = name.replace("\\", "/").lower()
-        if normalized.endswith(source_rel):
+    cache = getattr(image, "_objdiff_dwarf_cu_by_source", None)
+    if cache is None:
+        cache = {}
+        dwarf = image.elf.get_dwarf_info()
+        for cu in dwarf.iter_CUs():
+            top = cu.get_top_DIE()
+            name = dwarf_string(top.attributes.get("DW_AT_name")) or ""
+            normalized = name.replace("\\", "/").lower()
+            if normalized:
+                cache[normalized] = cu
+        setattr(image, "_objdiff_dwarf_cu_by_source", cache)
+
+    for name, cu in cache.items():
+        if name.endswith(source_rel):
             return cu
     return None
 
@@ -570,17 +577,26 @@ def emit_bss(out, size: int, align: int, symbols: list[tuple[str, int, int, str]
     out.write("\n")
 
 
-def write_original_object_asm(image: ElfImage, root: Path, source_obj: Path, asm_path: Path, nm: Path) -> ObjdiffBudget:
+def write_original_object_asm(
+    image: ElfImage,
+    root: Path,
+    source_obj: Path,
+    asm_path: Path,
+    nm: Path,
+    original_symbols: dict[str, Symbol],
+    original_branch_symbols: dict[int, str],
+    original_stub_symbols: dict[int, str],
+) -> ObjdiffBudget:
     text = image.section(".text")
     symbols = source_text_symbols(source_obj, nm)
-    orig = original_symbol_map(image)
-    branch_symbols = original_branch_symbol_map(image)
+    orig = dict(original_symbols)
+    branch_symbols = dict(original_branch_symbols)
     dwarf_symbols = dwarf_subprogram_symbols(image, source_path_for_obj(root, source_obj))
     orig.update(dwarf_symbols)
     for symbol in dwarf_symbols:
         symbols.setdefault(symbol, section_for_symbol(symbol))
     branch_symbols.update({sym.addr: sym.name for sym in orig.values()})
-    branch_symbols.update(original_stub_symbol_map(image, branch_symbols))
+    branch_symbols.update(original_stub_symbols)
     relocs = source_relocations(source_obj)
     sizes = source_section_sizes(source_obj)
     aligns = source_section_alignments(source_obj)
@@ -626,37 +642,7 @@ def write_original_object_asm(image: ElfImage, root: Path, source_obj: Path, asm
     return ObjdiffBudget(emitted, code_size, data_size)
 
 
-def full_code_size(image: ElfImage) -> int:
-    return sum(section.size for section in image.alloc_sections() if section.is_exec)
-
-
-def full_data_size(image: ElfImage) -> int:
-    return sum(section.size for section in image.alloc_sections() if not section.is_exec)
-
-
-def write_unaccounted_object_asm(root: Path, code_size: int, data_size: int) -> Path:
-    asm_path = root / "build" / "objdiff" / "orig" / Path(UNACCOUNTED_UNIT).with_suffix(".s")
-    asm_path.parent.mkdir(parents=True, exist_ok=True)
-    with asm_path.open("w") as out:
-        out.write("/* Auto-generated unmatched project progress budget. */\n\n")
-        if code_size:
-            out.write('.section .text.__unaccounted, "ax", @progbits\n')
-            out.write(".global __objdiff_unaccounted_code\n")
-            out.write(".type __objdiff_unaccounted_code, @function\n")
-            out.write(f".size __objdiff_unaccounted_code, {code_size}\n")
-            out.write("__objdiff_unaccounted_code:\n")
-            out.write(f"    .space {code_size}\n\n")
-        if data_size:
-            out.write('.section .bss, "aw", @nobits\n')
-            out.write(".global __objdiff_unaccounted_data\n")
-            out.write(".type __objdiff_unaccounted_data, @object\n")
-            out.write(f".size __objdiff_unaccounted_data, {data_size}\n")
-            out.write("__objdiff_unaccounted_data:\n")
-            out.write(f"    .space {data_size}\n\n")
-    return asm_path
-
-
-def build_objdiff_config(root: Path, source_objs: list[Path], include_unaccounted: bool) -> dict[str, object]:
+def build_objdiff_config(root: Path, source_objs: list[Path]) -> dict[str, object]:
     units = []
     for obj in source_objs:
         obj = (root / obj).resolve() if not obj.is_absolute() else obj.resolve()
@@ -667,14 +653,6 @@ def build_objdiff_config(root: Path, source_objs: list[Path], include_unaccounte
                 "name": rel.as_posix(),
                 "target_path": orig_obj.relative_to(root).as_posix(),
                 "base_path": obj.relative_to(root).as_posix(),
-            }
-        )
-
-    if include_unaccounted:
-        units.append(
-            {
-                "name": UNACCOUNTED_UNIT,
-                "target_path": (root / "build" / "objdiff" / "orig" / UNACCOUNTED_UNIT).relative_to(root).as_posix(),
             }
         )
 
@@ -706,28 +684,30 @@ def build_objdiff_config(root: Path, source_objs: list[Path], include_unaccounte
 def write_objdiff(root: Path, image: ElfImage, source_objs: list[Path]) -> None:
     nm = root / "tools" / "ppu-lv2-nm"
     targets = {}
-    accounted_code = 0
-    accounted_data = 0
+    original_symbols = original_symbol_map(image)
+    original_branch_symbols = original_branch_symbol_map(image)
+    original_stub_symbols = original_stub_symbol_map(image, original_branch_symbols)
     for obj in source_objs:
         obj = (root / obj).resolve() if not obj.is_absolute() else obj.resolve()
         rel = obj.relative_to(root / "build" / "src")
         asm_path = root / "build" / "objdiff" / "orig" / rel.with_suffix(".s")
-        budget = write_original_object_asm(image, root, obj, asm_path, nm)
-        accounted_code += budget.code
-        accounted_data += budget.data
+        budget = write_original_object_asm(
+            image,
+            root,
+            obj,
+            asm_path,
+            nm,
+            original_symbols,
+            original_branch_symbols,
+            original_stub_symbols,
+        )
         targets[obj.relative_to(root).as_posix()] = {
             "asm": asm_path.relative_to(root).as_posix(),
             "object": (root / "build" / "objdiff" / "orig" / rel).relative_to(root).as_posix(),
             "symbols": budget.symbols,
         }
 
-    unaccounted_code = max(0, full_code_size(image) - accounted_code)
-    unaccounted_data = max(0, full_data_size(image) - accounted_data)
-    include_unaccounted = bool(unaccounted_code or unaccounted_data)
-    if include_unaccounted:
-        write_unaccounted_object_asm(root, unaccounted_code, unaccounted_data)
-
     out_dir = root / "build" / "objdiff"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "targets.json").write_text(json.dumps(targets, indent=2, sort_keys=True) + "\n")
-    (root / "objdiff.json").write_text(json.dumps(build_objdiff_config(root, source_objs, include_unaccounted), indent=2) + "\n")
+    (root / "objdiff.json").write_text(json.dumps(build_objdiff_config(root, source_objs), indent=2) + "\n")

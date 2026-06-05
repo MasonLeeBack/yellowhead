@@ -14,7 +14,7 @@ Progress is generated with objdiff plus a project-level correction step that acc
 make objdiff-report
 ```
 
-That writes `build/report.json` and prints the current report. The report includes a generated `__unaccounted.o` unit that represents ELF code/data/functions not yet assigned to real source objects. It is bookkeeping only; normal object listings stay focused on real source files.
+That writes `build/report.json` and prints the current report. The report totals are corrected against the full original ELF, while the interactive objdiff config only lists real source objects so the GUI stays responsive.
 
 ```sh
 make objdiff-objects

@@ -143,9 +143,8 @@ build/objdiff/orig/%.s:
 	@test -f $@
 
 OBJDIFF_ORIG_OBJS := $(patsubst build/src/%.o,build/objdiff/orig/%.o,$(SRC_OBJS))
-OBJDIFF_UNACCOUNTED_OBJ := build/objdiff/orig/__unaccounted.o
 
-objdiff: objdiff.json build/objdiff/targets.json $(OBJDIFF_ORIG_OBJS) $(OBJDIFF_UNACCOUNTED_OBJ)
+objdiff: objdiff.json build/objdiff/targets.json $(OBJDIFF_ORIG_OBJS)
 
 objdiff-targets: objdiff
 
