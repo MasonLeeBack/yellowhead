@@ -155,16 +155,16 @@ build/report.json: objdiff
 objdiff-report: build/report.json
 	@cat build/report.json
 
-objdiff-objects: objdiff
+objdiff-objects:
 	@$(DECOMP) objdiff-list --objects
 
-objdiff-functions: objdiff
+objdiff-functions:
 	@$(DECOMP) objdiff-list $(if $(UNIT),--unit "$(UNIT)",)
 
-objdiff-bss: objdiff
+objdiff-bss:
 	@$(DECOMP) objdiff-list --bss $(if $(UNIT),--unit "$(UNIT)",)
 
-objdiff-todo: objdiff
+objdiff-todo:
 	@$(DECOMP) objdiff-list --todo-only $(if $(UNIT),--unit "$(UNIT)",)
 
 objdiff-diff: objdiff
