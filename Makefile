@@ -63,7 +63,7 @@ ASMFLAGS := -x assembler -Wa,-mcellppu
 build/src/CWLib/%.o: CXXFLAGS_RECOMP += -mcallprof=1
 build/src/CWLib/%.o: CFLAGS_RECOMP += -mcallprof=1
 
-.PHONY: all analyze generate relocs objdiff objdiff-targets objdiff-report objdiff-objects objdiff-functions objdiff-todo objdiff-diff rebuild check clean distclean toolcheck print-src
+.PHONY: all analyze generate relocs objdiff objdiff-targets objdiff-report objdiff-objects objdiff-functions objdiff-bss objdiff-todo objdiff-diff rebuild check clean distclean toolcheck print-src
 
 all: rebuild
 
@@ -160,6 +160,9 @@ objdiff-objects: objdiff
 
 objdiff-functions: objdiff
 	@$(DECOMP) objdiff-list $(if $(UNIT),--unit "$(UNIT)",)
+
+objdiff-bss: objdiff
+	@$(DECOMP) objdiff-list --bss $(if $(UNIT),--unit "$(UNIT)",)
 
 objdiff-todo: objdiff
 	@$(DECOMP) objdiff-list --todo-only $(if $(UNIT),--unit "$(UNIT)",)

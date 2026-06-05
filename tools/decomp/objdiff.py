@@ -145,6 +145,75 @@ def die_addr(die, elf: ELFFile, addr_size: int) -> int | None:
     return int.from_bytes(data[1:1 + addr_size], "little" if elf.little_endian else "big")
 
 
+def die_byte_size(die, dies: dict[int, object], cu, seen: set[int] | None = None) -> int | None:
+    seen = seen or set()
+    if die.offset in seen:
+        return None
+    seen.add(die.offset)
+
+    size = die.attributes.get("DW_AT_byte_size")
+    if size is not None:
+        return int(size.value)
+
+    spec_attr = die.attributes.get("DW_AT_specification")
+    if spec_attr is not None:
+        spec_die = dies.get(die_ref(cu, spec_attr))
+        if spec_die is not None:
+            spec_size = die_byte_size(spec_die, dies, cu, seen)
+            if spec_size is not None:
+                return spec_size
+
+    type_attr = die.attributes.get("DW_AT_type")
+    if type_attr is not None and die.tag != "DW_TAG_array_type":
+        type_die = dies.get(die_ref(cu, type_attr))
+        if type_die is not None:
+            type_size = die_byte_size(type_die, dies, cu, seen)
+            if type_size is not None:
+                return type_size
+
+    if die.tag == "DW_TAG_array_type" and type_attr is not None:
+        type_die = dies.get(die_ref(cu, type_attr))
+        element_size = die_byte_size(type_die, dies, cu, seen) if type_die is not None else None
+        if element_size is None:
+            return None
+        count = 1
+        for child in die.iter_children():
+            if child.tag != "DW_TAG_subrange_type":
+                continue
+            upper = child.attributes.get("DW_AT_upper_bound")
+            count_attr = child.attributes.get("DW_AT_count")
+            if count_attr is not None:
+                count *= int(count_attr.value)
+            elif upper is not None:
+                count *= int(upper.value) + 1
+        return element_size * count
+
+    return None
+
+
+def dwarf_bss_symbols(image: ElfImage, source_rel: str) -> list[tuple[str, int, int]]:
+    bss = image.section(".bss")
+    cu = dwarf_compile_unit(image, source_rel)
+    if cu is None:
+        return []
+
+    out: list[tuple[str, int, int]] = []
+    dies = {die.offset: die for die in cu.iter_DIEs()}
+    addr_size = int(cu["address_size"])
+    for die in dies.values():
+        if die.tag != "DW_TAG_variable":
+            continue
+        addr = die_addr(die, image.elf, addr_size)
+        if addr is None or not (bss.addr <= addr < bss.end):
+            continue
+        name = die_linkage_name(die, dies, cu) or die_name(die, dies, cu)
+        if not name:
+            continue
+        size = die_byte_size(die, dies, cu) or 0
+        out.append((name, addr, size))
+    return sorted(out, key=lambda item: (item[1], item[0]))
+
+
 def dwarf_bss_addresses(image: ElfImage, source_rel: str) -> dict[str, int]:
     out: dict[str, int] = {}
     cu = dwarf_compile_unit(image, source_rel)

@@ -9,7 +9,7 @@ import sys
 
 from .elf import ElfImage, Section
 from .layout import write_generated, write_manifest
-from .objdiff import dwarf_bss_addresses, inferred_bss_address, source_bss_symbols, source_path_for_obj, write_objdiff
+from .objdiff import dwarf_bss_addresses, dwarf_bss_symbols, inferred_bss_address, source_bss_symbols, source_path_for_obj, write_objdiff
 from .replacements import load_replacements, scan_objects
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -313,10 +313,45 @@ def target_symbols(target: dict[str, object]) -> list[str]:
     return [str(symbol) for symbol in symbols]
 
 
+def target_object_path(target_key: str) -> Path:
+    obj = ROOT / target_key
+    if not obj.exists():
+        raise RuntimeError(f"missing source object {target_key}; run the build first")
+    return obj
+
+
+def cmd_objdiff_list_bss(rows: list[tuple[str, dict[str, object] | None, dict[str, object]]]) -> int:
+    with ElfImage(ORIG) as image:
+        for unit_name, _report_unit, _target in rows:
+            obj = target_object_path("build/src/" + unit_name)
+            source_symbols = source_bss_symbols(obj)
+            source_by_name = {name: (offset, size) for name, offset, size, _bind in source_symbols}
+            source_offsets = {name: offset for name, offset, _size, _bind in source_symbols}
+            addresses = dwarf_bss_addresses(image, source_path_for_obj(ROOT, obj))
+            target_symbols_by_name = dwarf_bss_symbols(image, source_path_for_obj(ROOT, obj))
+            if not target_symbols_by_name and not source_symbols:
+                continue
+
+            print(unit_name)
+            print(f"  {'status':<7} {'source':>8} {'target':>10} {'size':>6} symbol")
+            for name, addr, size in target_symbols_by_name:
+                source = source_by_name.get(name)
+                status = "OK" if source is not None else "TODO"
+                source_text = f"0x{source[0]:04x}" if source is not None else "-"
+                print(f"  {status:<7} {source_text:>8} 0x{addr:08x} {size:6d} {name}")
+
+            target_names = {name for name, _addr, _size in target_symbols_by_name}
+            for name, offset, size, _bind in source_symbols:
+                if name in target_names:
+                    continue
+                addr = inferred_bss_address(addresses, source_offsets, name, offset)
+                target_text = f"0x{addr:08x}" if addr is not None else "-"
+                print(f"  EXTRA   0x{offset:04x} {target_text:>10} {size:6d} {name}")
+    return 0
+
+
 def cmd_objdiff_list(args: argparse.Namespace) -> int:
     targets = load_objdiff_targets()
-    report = load_objdiff_report()
-    units_by_name = report_unit_map(report)
 
     selected = normalize_unit(args.unit) if args.unit else None
     rows: list[tuple[str, dict[str, object] | None, dict[str, object]]] = []
@@ -324,12 +359,18 @@ def cmd_objdiff_list(args: argparse.Namespace) -> int:
         unit_name = unit_name_from_target_key(target_key)
         if selected and normalize_unit(unit_name) != selected:
             continue
-        report_unit = units_by_name.get(unit_name)
-        rows.append((unit_name, report_unit, target))
+        rows.append((unit_name, None, target))
 
     if selected and not rows:
         known = ", ".join(unit_name_from_target_key(key) for key in sorted(targets))
         raise RuntimeError(f"unknown objdiff unit {args.unit!r}; known units: {known}")
+
+    if args.bss:
+        return cmd_objdiff_list_bss(rows)
+
+    report = load_objdiff_report()
+    units_by_name = report_unit_map(report)
+    rows = [(unit_name, units_by_name.get(unit_name), target) for unit_name, _report_unit, target in rows]
 
     if args.objects:
         for unit_name, report_unit, target in rows:
@@ -414,6 +455,7 @@ def build_parser() -> argparse.ArgumentParser:
     objdiff_list.add_argument("--unit", help="Objdiff unit, e.g. CoreLib/src/Clock.o")
     objdiff_list.add_argument("--objects", action="store_true", help="List objdiff objects instead of functions")
     objdiff_list.add_argument("--todo-only", action="store_true", help="Only show functions below 100%%")
+    objdiff_list.add_argument("--bss", action="store_true", help="List DWARF-backed .bss symbols instead of functions")
     objdiff_list.set_defaults(func=cmd_objdiff_list)
     return parser
 
