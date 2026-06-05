@@ -1,9 +1,34 @@
+# Local inputs / proprietary SDK payloads
 orig/
-build/
 sdk/
-asm/*
+
+# Generated build products
+build/
+objdiff.json
 *.o
 *.elf
 *.self
 *.bin
-objdiff.json
+
+# Generated assembly. Keep only directory placeholders.
+asm/*
+!asm/data/
+asm/data/*
+!asm/data/.gitkeep
+!asm/opd/
+asm/opd/*
+!asm/opd/.gitkeep
+!asm/text/
+asm/text/*
+!asm/text/.gitkeep
+
+# Agentic tools
+tools/agents/*
+analysis/*
+
+# Local Python/editor noise
+.venv/
+__pycache__/
+*.py[cod]
+.*.kate-swp
+*~

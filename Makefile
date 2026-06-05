@@ -1,25 +1,20 @@
 PYTHON ?= .venv/bin/python
 
-TOOLS_DIR := $(CURDIR)/tools
+ROOT := $(CURDIR)
+TOOLS_DIR := $(ROOT)/tools
 
 CC      := $(TOOLS_DIR)/ppu-lv2-gcc
 CXX     := $(TOOLS_DIR)/ppu-lv2-g++
 LD      := $(TOOLS_DIR)/ppu-lv2-ld
 READELF := $(TOOLS_DIR)/ppu-lv2-readelf
-
-# Native assembler for objdiff target objects.
-# sudo apt install binutils-powerpc64-linux-gnu
-OBJDIFF_AS ?= powerpc64-linux-gnu-as
-
-ASMFLAGS := -x assembler -Wa,-mcellppu
+DECOMP  := $(PYTHON) $(TOOLS_DIR)/decomp_cli.py
+OBJDIFF_CLI ?= $(TOOLS_DIR)/agents/objdiff-cli-linux-x86_64
+BRANCH_HINTS ?= 1
 
 ORIG_ELF := orig/EBOOT.ELF
 
-SECTION_RAW := build/EBOOT.sections.raw.elf
-SECTION_REBUILT := build/EBOOT.sections.elf
-
-TEXT_ASM := asm/text/text_blobs.s
-TEXT_OBJ := build/text_blobs.o
+RAW_ELF := build/yellowhead.raw.elf
+REBUILT_ELF := build/yellowhead.elf
 
 SRC_CPP := $(shell find src -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) 2>/dev/null)
 SRC_C   := $(shell find src -type f -name '*.c' 2>/dev/null)
@@ -30,150 +25,154 @@ SRC_CXX_OBJS := \
 	$(patsubst src/%.cxx,build/src/%.o,$(filter %.cxx,$(SRC_CPP)))
 
 SRC_C_OBJS := $(patsubst src/%.c,build/src/%.o,$(SRC_C))
-
 SRC_OBJS := $(SRC_CXX_OBJS) $(SRC_C_OBJS)
+DEPFILES := $(SRC_OBJS:.o=.d)
+
+PROJECT_INCLUDES := \
+	-Iinclude \
+	-Isrc/CoreLib/src \
+	-Isrc/CWLib/src
 
 CXXFLAGS_RECOMP := \
-    -mcpu=cell \
+	-mcpu=cell \
 	-mtune=cell \
-	-mcallprof=1 \
 	-O2 \
 	-fno-exceptions \
 	-fno-rtti \
 	-fno-asynchronous-unwind-tables \
 	-fno-unwind-tables \
 	-ffunction-sections \
-	-fdata-sections \
-	-Iinclude
+	-falign-functions=4 \
+	-fsection-anchors \
+	$(PROJECT_INCLUDES)
 
 CFLAGS_RECOMP := \
 	-O2 \
 	-fno-asynchronous-unwind-tables \
 	-fno-unwind-tables \
 	-ffunction-sections \
-	-fdata-sections \
-	-Iinclude
+	$(PROJECT_INCLUDES)
 
-.PHONY: all rebuild sections check clean clean-objdiff
-.PHONY: toolcheck info print-src
-.PHONY: decomp-db objdiff-bootstrap objdiff-config objdiff-targets
+ifeq ($(BRANCH_HINTS),0)
+CXXFLAGS_RECOMP += -DDECOMP_DISABLE_BRANCH_HINTS=1
+CFLAGS_RECOMP += -DDECOMP_DISABLE_BRANCH_HINTS=1
+endif
 
-# Normal default: build runnable ELF, do not byte-compare.
+ASMFLAGS := -x assembler -Wa,-mcellppu
+
+build/src/CWLib/%.o: CXXFLAGS_RECOMP += -mcallprof=1
+build/src/CWLib/%.o: CFLAGS_RECOMP += -mcallprof=1
+
+.PHONY: all analyze generate relocs objdiff objdiff-targets objdiff-report objdiff-objects objdiff-functions objdiff-todo objdiff-diff rebuild check clean distclean toolcheck print-src
+
 all: rebuild
 
-# ---------------------------------------------------------------------
-# Tool / debug helpers
-# ---------------------------------------------------------------------
-
 toolcheck:
-	. ./config/toolchain.env && $(CXX) --version
-	. ./config/toolchain.env && $(CC) --version
-	. ./config/toolchain.env && $(LD) --version
-	@command -v $(OBJDIFF_AS) >/dev/null || echo "warning: $(OBJDIFF_AS) not found; install binutils-powerpc64-linux-gnu"
-
-info:
-	. ./config/toolchain.env && $(READELF) -h $(ORIG_ELF)
-	. ./config/toolchain.env && $(READELF) -l $(ORIG_ELF)
-	. ./config/toolchain.env && $(READELF) -S $(ORIG_ELF)
+	$(CXX) --version
+	$(CC) --version
+	$(LD) --version
 
 print-src:
 	@echo "SRC_CPP=$(SRC_CPP)"
 	@echo "SRC_C=$(SRC_C)"
 	@echo "SRC_OBJS=$(SRC_OBJS)"
 
-# ---------------------------------------------------------------------
-# Source tree compile
-# ---------------------------------------------------------------------
-
 build/src/%.o: src/%.cpp
 	@mkdir -p $(dir $@)
-	. ./config/toolchain.env && $(CXX) -c $< -o $@ $(CXXFLAGS_RECOMP)
+	$(CXX) -MMD -MP -MF $(@:.o=.d) -c $< -o $@ $(CXXFLAGS_RECOMP)
 
 build/src/%.o: src/%.cc
 	@mkdir -p $(dir $@)
-	. ./config/toolchain.env && $(CXX) -c $< -o $@ $(CXXFLAGS_RECOMP)
+	$(CXX) -MMD -MP -MF $(@:.o=.d) -c $< -o $@ $(CXXFLAGS_RECOMP)
 
 build/src/%.o: src/%.cxx
 	@mkdir -p $(dir $@)
-	. ./config/toolchain.env && $(CXX) -c $< -o $@ $(CXXFLAGS_RECOMP)
+	$(CXX) -MMD -MP -MF $(@:.o=.d) -c $< -o $@ $(CXXFLAGS_RECOMP)
 
 build/src/%.o: src/%.c
 	@mkdir -p $(dir $@)
-	. ./config/toolchain.env && $(CC) -c $< -o $@ $(CFLAGS_RECOMP)
+	$(CC) -MMD -MP -MF $(@:.o=.d) -c $< -o $@ $(CFLAGS_RECOMP)
 
-build/replacement_map.json: $(SRC_OBJS) tools/scan_replacement_objects.py
-	@mkdir -p build
-	$(PYTHON) tools/scan_replacement_objects.py $(SRC_OBJS)
+-include $(DEPFILES)
 
-# ---------------------------------------------------------------------
-# Runnable rebuilt ELF
-# ---------------------------------------------------------------------
+build/decomp/manifest.json: $(ORIG_ELF) tools/decomp/*.py tools/decomp_cli.py
+	$(DECOMP) analyze
 
-$(TEXT_ASM) build/text_functions.tsv build/text_layout.ldinc: tools/prepare_text_split.py $(ORIG_ELF) build/replacement_map.json
-	$(PYTHON) tools/prepare_text_split.py $(ORIG_ELF)
+analyze: build/decomp/manifest.json
 
-asm/section_blobs.s build/linker_sections.ld: tools/prepare_sections.py $(ORIG_ELF) build/text_layout.ldinc
-	$(PYTHON) tools/prepare_sections.py $(ORIG_ELF)
+build/replacement_map.json: $(SRC_OBJS) replacements.json tools/decomp/*.py tools/decomp_cli.py
+	$(DECOMP) scan-replacements $(SRC_OBJS)
 
-build/section_blobs.o: asm/section_blobs.s $(TEXT_ASM)
-	@mkdir -p build
-	. ./config/toolchain.env && $(CC) -c $(ASMFLAGS) -o $@ asm/section_blobs.s
+asm/text/text_blobs.s asm/section_blobs.s build/linker.ld build/text_layout.ldinc: \
+		$(ORIG_ELF) build/replacement_map.json tools/decomp/*.py tools/decomp_cli.py
+	$(DECOMP) generate
 
-$(TEXT_OBJ): $(TEXT_ASM)
-	@mkdir -p build
-	. ./config/toolchain.env && $(CC) -c $(ASMFLAGS) -o $@ $<
+generate: asm/text/text_blobs.s asm/section_blobs.s build/linker.ld build/text_layout.ldinc
 
-$(SECTION_RAW): build/section_blobs.o $(TEXT_OBJ) $(SRC_OBJS) build/linker_sections.ld build/text_layout.ldinc
-	. ./config/toolchain.env && $(LD) -T build/linker_sections.ld -o $@ build/section_blobs.o $(TEXT_OBJ) $(SRC_OBJS)
-
-$(SECTION_REBUILT): $(SECTION_RAW) tools/finalize_ps3_elf.py
-	$(PYTHON) tools/finalize_ps3_elf.py $(ORIG_ELF) $(SECTION_RAW) $(SECTION_REBUILT)
-
-rebuild sections: $(SECTION_REBUILT)
-	@echo "rebuilt $(SECTION_REBUILT)"
-
-# Strict byte check. Expected to fail while source functions are nonmatching.
-check: $(SECTION_REBUILT)
-	$(PYTHON) tools/compare_loads.py $(ORIG_ELF) $(SECTION_REBUILT)
-
-# ---------------------------------------------------------------------
-# Objdiff
-# ---------------------------------------------------------------------
-
-build/decomp_db.json: tools/build_decomp_db.py $(ORIG_ELF)
-	@mkdir -p build
-	$(PYTHON) tools/build_decomp_db.py
-
-decomp-db: build/decomp_db.json
-
-# Generate decomp DB, target asm, and objdiff.json.
-# This does NOT build every target object. Objdiff can request individual objs.
-objdiff-bootstrap: $(SRC_OBJS) build/decomp_db.json tools/gen_objdiff_targets.py tools/gen_objdiff.py
-	$(PYTHON) tools/gen_objdiff_targets.py
-	$(PYTHON) tools/gen_objdiff.py
-	@echo "objdiff bootstrap complete"
-
-objdiff-config: objdiff-bootstrap
-
-# Objdiff can call: make build/objdiff/target/path/to/file.o
-build/objdiff/target/%.o: asm/objdiff/target/%.s
+build/text_blobs.o: asm/text/text_blobs.s
 	@mkdir -p $(dir $@)
-	$(OBJDIFF_AS) -o $@ $<
+	$(CC) -c $(ASMFLAGS) -o $@ $<
 
-# Optional: build all generated target objects once.
-objdiff-targets: objdiff-bootstrap tools/build_objdiff_targets.py
-	$(PYTHON) tools/build_objdiff_targets.py
+build/section_blobs.o: asm/section_blobs.s
+	@mkdir -p $(dir $@)
+	$(CC) -c $(ASMFLAGS) -o $@ $<
 
-# ---------------------------------------------------------------------
-# Cleanup
-# ---------------------------------------------------------------------
+$(RAW_ELF): build/linker.ld build/text_blobs.o build/section_blobs.o build/replacement_map.json
+	$(LD) -T build/linker.ld -o $@ build/section_blobs.o build/text_blobs.o $$($(DECOMP) replacement-objects)
+
+$(REBUILT_ELF): $(RAW_ELF)
+	$(DECOMP) finalize $(ORIG_ELF) $(RAW_ELF) $(REBUILT_ELF)
+
+rebuild: $(REBUILT_ELF)
+	@echo "rebuilt $(REBUILT_ELF)"
+
+check: $(REBUILT_ELF)
+	$(DECOMP) compare-loads $(ORIG_ELF) $(REBUILT_ELF)
+
+relocs: $(SRC_OBJS)
+	$(DECOMP) object-relocs $(SRC_OBJS)
+
+objdiff.json build/objdiff/targets.json &: $(ORIG_ELF) $(SRC_OBJS) tools/decomp/*.py tools/decomp_cli.py
+	$(DECOMP) objdiff $(SRC_OBJS)
+
+build/objdiff/orig/%.o: build/objdiff/orig/%.s
+	@mkdir -p $(dir $@)
+	@$(CC) -c $(ASMFLAGS) -o $@ $<
+
+build/objdiff/orig/%.s: objdiff.json build/objdiff/targets.json
+	@test -f $@
+
+OBJDIFF_ORIG_OBJS := $(patsubst build/src/%.o,build/objdiff/orig/%.o,$(SRC_OBJS))
+OBJDIFF_UNACCOUNTED_OBJ := build/objdiff/orig/__unaccounted.o
+
+objdiff: objdiff.json build/objdiff/targets.json $(OBJDIFF_ORIG_OBJS) $(OBJDIFF_UNACCOUNTED_OBJ)
+
+objdiff-targets: objdiff
+
+build/report.json: objdiff
+	@$(DECOMP) objdiff-report -o $@ -f json-pretty
+
+objdiff-report: build/report.json
+	@cat build/report.json
+
+objdiff-objects: objdiff
+	@$(DECOMP) objdiff-list --objects
+
+objdiff-functions: objdiff
+	@$(DECOMP) objdiff-list $(if $(UNIT),--unit "$(UNIT)",)
+
+objdiff-todo: objdiff
+	@$(DECOMP) objdiff-list --todo-only $(if $(UNIT),--unit "$(UNIT)",)
+
+objdiff-diff: objdiff
+	@test -n "$(UNIT)" || (echo "usage: make objdiff-diff UNIT=CoreLib/src/Clock.o SYMBOL='._Z8GetClockv'" >&2; exit 1)
+	@test -n "$(SYMBOL)" || (echo "usage: make objdiff-diff UNIT=CoreLib/src/Clock.o SYMBOL='._Z8GetClockv'" >&2; exit 1)
+	@$(OBJDIFF_CLI) diff -p . -u "$(UNIT)" "$(SYMBOL)" -o - --format json-pretty
 
 clean:
 	rm -rf build
-	rm -f asm/section_blobs.s
-	rm -f asm/text/text_blobs.s
+	rm -f asm/section_blobs.s asm/text/text_blobs.s
 
-clean-objdiff:
-	rm -rf build/objdiff
+distclean: clean
 	rm -rf asm/objdiff
 	rm -f objdiff.json

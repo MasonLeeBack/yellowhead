@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export WINEPREFIX="$HOME/.wine-ps3sdk270"
+export WINEDEBUG=-all
+
+export CELL_SDK_WIN="Z:$(pwd)/sdk"
+export PS3SDK_PPU_BIN_WIN="Z:$(pwd)/sdk/host-win32/ppu/bin"
+
+
 if [ -z "${PS3SDK_PPU_BIN_WIN:-}" ]; then
-    echo "PS3SDK_PPU_BIN_WIN is not set. Run: source config/toolchain.env" >&2
+    echo "PS3SDK_PPU_BIN_WIN is not set." >&2
     exit 1
 fi
 
