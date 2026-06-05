@@ -162,44 +162,40 @@ bool CheckHashString(const char* str)
 
 bool CheckFloatString(const char* str)
 {
-    if (*str == '-' || *str == '+')
-        ++str;
-    bool digit = false;
-    while (isdigit((unsigned char)*str)) {
-        digit = true;
-        ++str;
+    size_t len = strlen(str);
+    for (size_t i = 0; i != len; ++i) {
+        char ch = str[i];
+        if (!isdigit((unsigned char)ch) && ch != '.' && ch != '-' && ch != '+')
+            return false;
     }
-    if (*str == '.') {
-        ++str;
-        while (isdigit((unsigned char)*str)) {
-            digit = true;
-            ++str;
-        }
-    }
-    return digit && *str == 0;
+    return true;
 }
 
 bool CheckNumberString(const char* str)
 {
-    if (*str == '-' || *str == '+')
-        ++str;
-    if (!isdigit((unsigned char)*str))
-        return false;
-    while (isdigit((unsigned char)*str))
-        ++str;
-    return *str == 0;
+    size_t len = strlen(str);
+    for (size_t i = 0; i != len; ++i) {
+        if (!isdigit((unsigned char)str[i]))
+            return false;
+    }
+    return true;
 }
 
 bool CheckDescriptorString(const char* str)
 {
-    if (!isalpha((unsigned char)*str) && *str != '_')
-        return false;
-    while (*str) {
-        if (!isalnum((unsigned char)*str) && *str != '_')
+    if (*str != 'g')
+        return CheckHashString(str);
+
+    for (u32 i = 1; i != 8;) {
+        bool after_first = i > 1;
+        char ch = str[i];
+        ++i;
+        if (ch == 0 && after_first)
+            return true;
+        if (!isdigit(ch))
             return false;
-        ++str;
     }
-    return true;
+    return false;
 }
 
 size_t StringCopy(char* dst, const char* src, size_t dst_size) { return StringCopy<char>(dst, src, dst_size); }
