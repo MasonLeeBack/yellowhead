@@ -1,21 +1,36 @@
-#include "types.h"
+#include "Fifo.h"
 
-class CMMSemaphore {
-public:
-    void Increment(u32 count);
-    bool WaitAndDecrement(int timeout);
-    void DoAbort();
-};
-
-void CMMSemaphore::Increment(u32 count)
+bool CMMSemaphore::Increment(u32 count)
 {
+    bool ret = false;
+    if (!Abort) {
+        if (sys_semaphore_post(Sem, count) == 0)
+            ret = Abort == 0;
+    }
+    return ret;
 }
 
 bool CMMSemaphore::WaitAndDecrement(int timeout)
 {
-    return false;
+    bool ok = false;
+    int ret;
+    if (timeout == 0) {
+        ret = sys_semaphore_trywait(Sem);
+    } else {
+        usecond_t wait = 0;
+        if (timeout != -1)
+            wait = timeout * 1000;
+        ret = sys_semaphore_wait(Sem, wait);
+    }
+    if (ret == 0)
+        ok = Abort == 0;
+    return ok;
 }
 
 void CMMSemaphore::DoAbort()
 {
+    if (!Abort) {
+        Abort = true;
+        sys_semaphore_post(Sem, 1000);
+    }
 }
