@@ -2,6 +2,11 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
+#include <wchar.h>
+
+extern "C" int strcasecmp(const char* lhs, const char* rhs);
+extern "C" int strncasecmp(const char* lhs, const char* rhs, size_t count);
 
 template <typename T>
 static inline __attribute__((always_inline)) size_t StringLengthT(const T* str)
@@ -194,9 +199,9 @@ size_t StringCopy(char* dst, const char* src, size_t dst_size) { return StringCo
 size_t StringCopy(wchar_t* dst, const wchar_t* src, size_t dst_size) { return StringCopy<wchar_t>(dst, src, dst_size); }
 size_t StringCopy(tchar_t* dst, const tchar_t* src, size_t dst_size) { return StringCopy<tchar_t>(dst, src, dst_size); }
 
-size_t StringLength(const char* str) { return StringLengthT(str); }
-size_t StringLength(const wchar_t* str) { return StringLengthT(str); }
-size_t StringLength(const tchar_t* str) { return StringLengthT(str); }
+size_t StringLength(const char* str) { return strlen(str); }
+size_t StringLength(const wchar_t* str) { return wcslen(str); }
+size_t StringLength(const tchar_t* str) { return wcslen((const wchar_t*)str); }
 
 size_t StringAppend(char* dst, const char* src, size_t dst_size) { return StringAppend<char>(dst, src, dst_size); }
 size_t StringAppend(wchar_t* dst, const wchar_t* src, size_t dst_size) { return StringAppend<wchar_t>(dst, src, dst_size); }
@@ -248,34 +253,24 @@ size_t FormatString(tchar_t* dst, size_t dst_size, const tchar_t* fmt, ...)
 
 const char* StringFind(const char* str, char ch) { return StringFindT(str, ch); }
 const wchar_t* StringFind(const wchar_t* str, wchar_t ch) { return StringFindT(str, ch); }
-const tchar_t* StringFind(const tchar_t* str, tchar_t ch) { return StringFindT(str, ch); }
+const tchar_t* StringFind(const tchar_t* str, tchar_t ch) { return (const tchar_t*)wcschr((const wchar_t*)str, ch); }
 
-s32 StringCompareN(const char* lhs, const char* rhs, size_t count) { return StringCompareNT(lhs, rhs, count); }
+s32 StringCompareN(const char* lhs, const char* rhs, size_t count) { return strncmp(lhs, rhs, count); }
 s32 StringCompareN(const wchar_t* lhs, const wchar_t* rhs, size_t count) { return StringCompareNT(lhs, rhs, count); }
 s32 StringCompareN(const tchar_t* lhs, const tchar_t* rhs, size_t count) { return StringCompareNT(lhs, rhs, count); }
 
-s32 StringCompare(const char* lhs, const char* rhs) { return StringCompareT(lhs, rhs); }
-s32 StringCompare(const wchar_t* lhs, const wchar_t* rhs) { return StringCompareT(lhs, rhs); }
-s32 StringCompare(const tchar_t* lhs, const tchar_t* rhs) { return StringCompareT(lhs, rhs); }
+s32 StringCompare(const char* lhs, const char* rhs) { return strcmp(lhs, rhs); }
+s32 StringCompare(const wchar_t* lhs, const wchar_t* rhs) { return wcscmp(lhs, rhs); }
+s32 StringCompare(const tchar_t* lhs, const tchar_t* rhs) { return wcscmp((const wchar_t*)lhs, (const wchar_t*)rhs); }
 
 s32 StringICompareN(const char* lhs, const char* rhs, size_t count)
 {
-    while (count && *lhs) {
-        s32 diff = tolower((unsigned char)*lhs) - tolower((unsigned char)*rhs);
-        if (diff)
-            return diff;
-        --count;
-        ++lhs;
-        ++rhs;
-    }
-    if (!count)
-        return 0;
-    return tolower((unsigned char)*lhs) - tolower((unsigned char)*rhs);
+    return strncasecmp(lhs, rhs, count);
 }
 
 s32 StringICompare(const char* lhs, const char* rhs)
 {
-    return StringICompareN(lhs, rhs, (size_t)-1);
+    return strcasecmp(lhs, rhs);
 }
 
 bool SCompareIgnoreCase::operator()(const MMString<char>& lhs, const MMString<char>& rhs) const
