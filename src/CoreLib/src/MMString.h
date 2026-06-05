@@ -73,7 +73,7 @@ public:
 
 private:
     static bool CanUseLocalData(u32 count);
-    static u8 MakeLocalStoreFlag(u32 count);
+    static T MakeLocalStoreFlag(u32 count);
     bool IsUsingLocalData() const;
     void Construct(const T* start, u32 length);
     void Terminate(u32 length);
@@ -82,8 +82,8 @@ private:
     union {
         T LocalBuffer[LOCAL_STORE_BYTES / sizeof(T)];
         struct {
-            u8 _LocalBufferPad[LOCAL_STORE_BYTES - 1];
-            u8 LocalStoreFlag;
+            T _LocalBufferPad[LOCAL_STORE_CHARS];
+            T LocalStoreFlag;
         } LocalData;
         struct {
             T* Buffer;
@@ -111,15 +111,15 @@ inline bool MMString<T>::CanUseLocalData(u32 count)
 }
 
 template <typename T>
-inline u8 MMString<T>::MakeLocalStoreFlag(u32 count)
+inline T MMString<T>::MakeLocalStoreFlag(u32 count)
 {
-    return (u8)(LOCAL_STORE_CHARS - count);
+    return (T)(LOCAL_STORE_CHARS - count);
 }
 
 template <typename T>
 inline bool MMString<T>::IsUsingLocalData() const
 {
-    return LocalData.LocalStoreFlag != 0xff;
+    return LocalData.LocalStoreFlag != (T)-1;
 }
 
 template <typename T>
