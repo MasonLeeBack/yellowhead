@@ -133,7 +133,14 @@ const char* TCharToMultiByte_(char* dst, const tchar_t* start, const tchar_t* en
 u32 MultiByteStringLength_Chars(const char* start, const char* end)
 {
     u32 count = 0;
-    while (start != end && *start++) {
+    while (start < end) {
+        char ch = *start++;
+        if (ch < 0) {
+            if (*start++ == 0)
+                break;
+            if (((unsigned char)ch & 0xe0) == 0xe0 && *start++ == 0)
+                break;
+        }
         ++count;
     }
     return count;
@@ -141,7 +148,21 @@ u32 MultiByteStringLength_Chars(const char* start, const char* end)
 
 u32 MultiByteStringLength_Bytes(const wchar_t* start, const wchar_t* end)
 {
-    return MultiByteStringLength_Chars((const char*)start, (const char*)end);
+    u32 count = 0;
+    while (start < end) {
+        wchar_t ch = *start;
+        if (ch <= 0x7f) {
+            count += 1;
+            ++start;
+        } else if (ch <= 0x7ff) {
+            ++start;
+            count += 2;
+        } else {
+            count += 3;
+            ++start;
+        }
+    }
+    return count;
 }
 
 u32 MultiByteStringLength_Bytes(const tchar_t* start, const tchar_t* end)
