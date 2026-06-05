@@ -15,3 +15,5 @@ public:
 private:
     u8 Data[100];
 };
+
+void SHA1(const u8* data, u32 len, u8* digest);
