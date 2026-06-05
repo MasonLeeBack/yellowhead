@@ -192,14 +192,12 @@ u32 MultiByteStringLength_Bytes(const wchar_t* start, const wchar_t* end)
         wchar_t ch = *start;
         if (ch <= 0x7f) {
             count += 1;
-            ++start;
         } else if (ch <= 0x7ff) {
-            ++start;
             count += 2;
         } else {
             count += 3;
-            ++start;
         }
+        ++start;
     }
     return count;
 }
