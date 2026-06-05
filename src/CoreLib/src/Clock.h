@@ -17,4 +17,7 @@ u64 GetClock(void);
 u64 GetClockFreq(void);
 float ToSeconds(u64 clocktime);
 float ToMilliSeconds(u64 clocktime);
+u64 ToMicroSecondsInt(u64 clocktime);
 float GetClockSeconds(void);
+bool InitPerformanceTimers(void);
+u64 SecondsToClockTicks(float seconds);
