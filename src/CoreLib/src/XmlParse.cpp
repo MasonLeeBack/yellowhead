@@ -303,8 +303,7 @@ bool FindNode(TextRange<T> range, const T* tag, TextRange<T>* attributes, TextRa
         TextRange<T> tag_range = cur;
         TextRange<T> raw = ExtractTagRaw(cur);
         TextRange<T> name;
-        TextRange<T> attrs;
-        ExtractTagNameAndAttributes(raw, &name, &attrs);
+        ExtractTagNameAndAttributes(raw, &name, attributes);
         if (name.Compare(tag) == 0)
             return ExtractTag(tag_range, &name, attributes, contents);
     }
