@@ -225,6 +225,33 @@ bool ExtractTag<char>(TextRange<char>& range, TextRange<char>* tag, TextRange<ch
 }
 
 template <>
+TextRange<tchar_t> ExtractTagRaw<tchar_t>(TextRange<tchar_t>& range)
+{
+    const tchar_t* end = range.End;
+    const tchar_t* begin = range.Begin + 1;
+    const tchar_t* cur = begin;
+
+    if (end > cur) {
+        while (*cur != '>') {
+            ++cur;
+            if (end <= cur)
+                break;
+        }
+    }
+
+    const tchar_t* next = cur;
+    if (cur < end)
+        next = cur + 1;
+
+    TextRange<tchar_t> result;
+    range.End = end;
+    range.Begin = next;
+    result.End = cur;
+    result.Begin = begin;
+    return result;
+}
+
+template <>
 bool ExtractTag<tchar_t>(TextRange<tchar_t>& range, TextRange<tchar_t>* tag, TextRange<tchar_t>* contents)
 {
     if (range.Begin >= range.End || *range.Begin != '<')
