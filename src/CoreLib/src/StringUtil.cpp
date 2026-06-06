@@ -291,12 +291,11 @@ size_t FormatStringVarArg(wchar_t* dst, size_t dst_size, const wchar_t* fmt, va_
 {
     wchar_t* end = dst + dst_size - 1;
     *end = 0;
-    int len = vswprintf(dst, dst_size, fmt, args);
-    size_t out = (size_t)-1;
-    if (*end == 0)
-        out = (size_t)len;
+    size_t string_length = (size_t)vswprintf(dst, dst_size, fmt, args);
+    if (*end != 0)
+        string_length = (size_t)-1;
     *end = 0;
-    return out;
+    return string_length;
 }
 
 size_t FormatStringVarArg(tchar_t* dst, size_t dst_size, const tchar_t* fmt, va_list args)
