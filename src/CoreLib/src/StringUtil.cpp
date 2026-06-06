@@ -145,23 +145,26 @@ const char* WCharToMultiByte_(char* dst, const wchar_t* start, const wchar_t* en
             if (ch <= 0x7f) {
                 *out++ = ch;
                 ++start;
-                --count;
             } else if (ch <= 0x7ff) {
-                if (count < 2)
+                --count;
+                if (count == 0)
                     break;
                 *out++ = (ch >> 6) | 0xc0;
                 *out++ = (ch & 0x3f) | 0x80;
                 ++start;
-                count -= 2;
             } else {
-                if (count < 3)
+                --count;
+                if (count == 0)
+                    break;
+                --count;
+                if (count == 0)
                     break;
                 *out++ = (ch >> 12) | 0xe0;
                 *out++ = ((ch >> 6) & 0x3f) | 0x80;
                 *out++ = (ch & 0x3f) | 0x80;
                 ++start;
-                count -= 3;
             }
+            --count;
         }
     }
 
