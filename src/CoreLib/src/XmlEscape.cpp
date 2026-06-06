@@ -1,4 +1,5 @@
 #include "XmlEscape.h"
+#include "StringUtil.h"
 
 template <typename T>
 static inline __attribute__((always_inline)) int HexDigit(T ch)
@@ -272,18 +273,30 @@ static inline __attribute__((always_inline)) void XMLEscapeBounded(tchar_t*& dst
 
 size_t EscapeXmlEntities_(tchar_t* dst, const tchar_t* src, size_t dst_size)
 {
+    const tchar_t* src_end = src + StringLength(src);
+    const tchar_t* cur = src;
     tchar_t* out = dst;
-    tchar_t* end = dst + dst_size;
     size_t count = 0;
 
-    while (*src) {
-        wchar_t ch = *src++;
-        count += EscapedLength(ch);
-        XMLEscapeBounded(out, end, ch);
+    if (dst_size) {
+        tchar_t* dst_end = dst + dst_size;
+        while (cur < src_end) {
+            wchar_t ch = *cur;
+            size_t length = EscapedLength(ch);
+            if ((size_t)(dst_end - out) <= length)
+                break;
+            XMLEscape(out, ch);
+            ++cur;
+        }
+
+        count = out - dst;
+        if (out < dst_end)
+            *out = 0;
     }
 
-    if (out < end)
-        *out = 0;
+    while (cur < src_end)
+        count += EscapedLength(*cur++);
+
     return count;
 }
 
