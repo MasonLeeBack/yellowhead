@@ -172,38 +172,82 @@ inline __attribute__((always_inline)) void XMLEscape(T*& dst, wchar_t ch)
 template <>
 void XMLEscape<char>(char*& dst, wchar_t ch)
 {
-    static const char hex_digits[] = "0123456789ABCDEF";
-    const char* entity = 0;
+    static const char* hex = "0123456789ABCDEF";
 
-    switch (ch) {
-    case '&': entity = "&amp;"; break;
-    case '<': entity = "&lt;"; break;
-    case '>': entity = "&gt;"; break;
-    case '"': entity = "&quot;"; break;
-    case '\'': entity = "&apos;"; break;
-    case 0xa0: entity = "&nbsp;"; break;
-    default:
-        if (ch >= 0x20 && ch < 0x80) {
-            *dst++ = (char)ch;
-            return;
-        }
-
+    if (ch < 0x20 || ch >= 0x80) {
         *dst++ = '&';
         *dst++ = '#';
         *dst++ = 'x';
         if (ch >= 0x1000)
-            *dst++ = hex_digits[(ch >> 12) & 0xf];
+            *dst++ = hex[(ch >> 12) & 0xf];
         if (ch >= 0x100)
-            *dst++ = hex_digits[(ch >> 8) & 0xf];
+            *dst++ = hex[(ch >> 8) & 0xf];
         if (ch >= 0x10)
-            *dst++ = hex_digits[(ch >> 4) & 0xf];
-        *dst++ = hex_digits[ch & 0xf];
+            *dst++ = hex[(ch >> 4) & 0xf];
+        *dst++ = hex[ch & 0xf];
         *dst++ = ';';
         return;
     }
 
-    while (*entity)
-        *dst++ = *entity++;
+    if (ch == '\'') {
+        *dst++ = '&';
+        *dst++ = 'a';
+        *dst++ = 'p';
+        *dst++ = 'o';
+        *dst++ = 's';
+        *dst++ = ';';
+        return;
+    }
+
+    if (ch <= '\'') {
+        if (ch == '"') {
+            *dst++ = '&';
+            *dst++ = 'q';
+            *dst++ = 'u';
+            *dst++ = 'o';
+            *dst++ = 't';
+            *dst++ = ';';
+            return;
+        }
+
+        if (ch == '&') {
+            *dst++ = '&';
+            *dst++ = 'a';
+            *dst++ = 'm';
+            *dst++ = 'p';
+            *dst++ = ';';
+            return;
+        }
+    } else {
+        if (ch == '>') {
+            *dst++ = '&';
+            *dst++ = 'g';
+            *dst++ = 't';
+            *dst++ = ';';
+            return;
+        }
+
+        if (ch == 0xa0) {
+            *dst++ = '&';
+            *dst++ = 'n';
+            *dst++ = 'b';
+            *dst++ = 's';
+            *dst++ = 'p';
+            *dst++ = ';';
+            return;
+        }
+
+        if (ch == '<') {
+            *dst++ = '&';
+            *dst++ = 'l';
+            *dst++ = 't';
+            *dst++ = ';';
+            return;
+        }
+    }
+
+    *dst++ = (char)ch;
+    return;
 }
 
 static inline __attribute__((always_inline)) size_t EscapedLength(wchar_t ch)
