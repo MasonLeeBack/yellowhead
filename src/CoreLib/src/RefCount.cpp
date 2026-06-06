@@ -4,10 +4,10 @@ StaticCPForm* GStaticCPHead;
 
 void CleanupStaticCP()
 {
-    StaticCPForm* form = GStaticCPHead;
-    while (form != 0) {
-        form->RemoveRefPtr(form);
-        form = form->NextPtr;
+    StaticCPForm* next = GStaticCPHead;
+    while (next != 0) {
+        next->RemoveRefPtr(next);
+        next = next->NextPtr;
     }
 
     GStaticCPHead = 0;

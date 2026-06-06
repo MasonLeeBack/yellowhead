@@ -4,10 +4,11 @@
 #include "mem_monitor.h"
 
 u8* GOneFrameScratchPad;
-static u32 ScratchHeapMonID;
 u32 GCurScratchPad;
 u32 GLastScratchPadSizeUsed;
 u32 ScratchPadSize;
+
+static u32 ScratchHeapMonID;
 bool GWatchOut;
 
 void ScratchPadClean()
