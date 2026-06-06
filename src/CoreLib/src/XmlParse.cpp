@@ -5,7 +5,7 @@
 template <typename T>
 static inline __attribute__((always_inline)) bool IsSpaceT(T ch)
 {
-    return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n';
+    return ch <= ' ';
 }
 
 template <typename T>
@@ -32,22 +32,15 @@ static inline __attribute__((always_inline)) bool EqualsAscii(TextRange<T> range
 template <typename T>
 TextRange<T> ExtractTagRaw(TextRange<T>& range)
 {
-    TextRange<T> out(range.End, range.End);
-    const T* cur = range.Begin;
-    while (cur != range.End && *cur != '<')
+    const T* begin = range.Begin + 1;
+    const T* cur = begin;
+    while (cur < range.End && *cur != '>')
         ++cur;
-    if (cur == range.End) {
-        range = TextRange<T>(range.End, range.End);
-        return out;
-    }
-    const T* begin = cur++;
-    while (cur != range.End && *cur != '>')
-        ++cur;
-    if (cur != range.End)
-        ++cur;
-    out = TextRange<T>(begin, cur);
-    range = TextRange<T>(cur, range.End);
-    return out;
+    const T* next = cur;
+    if (next < range.End)
+        ++next;
+    range = TextRange<T>(next, range.End);
+    return TextRange<T>(begin, cur);
 }
 
 template <typename T>
@@ -92,20 +85,12 @@ template <typename T>
 void ExtractTagNameAndAttributes(TextRange<T> range, TextRange<T>* name, TextRange<T>* attributes)
 {
     range = Trim(range);
-    if (range.Begin != range.End && *range.Begin == '<')
-        ++range.Begin;
-    if (range.Begin != range.End && *range.Begin == '/')
-        ++range.Begin;
-    if (range.Begin != range.End && range.End[-1] == '>')
-        --range.End;
-    if (range.Begin != range.End && range.End[-1] == '/')
-        --range.End;
 
     const T* cur = range.Begin;
     while (cur != range.End && !IsSpaceT(*cur))
         ++cur;
     *name = TextRange<T>(range.Begin, cur);
-    *attributes = Trim(TextRange<T>(cur, range.End));
+    *attributes = TextRange<T>(cur, range.End).TrimWhiteQ();
 }
 
 template <typename T>
@@ -208,45 +193,55 @@ bool CTagIterator<Range>::Next()
 }
 
 template <typename T>
-bool FindNode(TextRange<T> range, const char* tag, TextRange<T>* contents, TextRange<T>* attributes)
+bool FindNode(TextRange<T> range, const T* tag, TextRange<T>* attributes, TextRange<T>* contents)
 {
     TextRange<T> cur = range;
-    TextRange<T> name;
-    TextRange<T> attrs;
-    TextRange<T> body;
-    while (ExtractTag(cur, &name, &attrs, &body)) {
-        if (EqualsAscii(name, tag)) {
-            *contents = body;
-            if (attributes)
-                *attributes = attrs;
-            return true;
-        }
+    while (cur.Begin < cur.End) {
+        while (cur.Begin < cur.End && *cur.Begin != '<')
+            ++cur.Begin;
+        if (cur.Begin == cur.End)
+            return false;
+
+        TextRange<T> tag_range = cur;
+        TextRange<T> raw = ExtractTagRaw(cur);
+        TextRange<T> name;
+        TextRange<T> attrs;
+        ExtractTagNameAndAttributes(raw, &name, &attrs);
+        if (name.Compare(tag) == 0)
+            return ExtractTag(tag_range, &name, attributes, contents);
     }
     return false;
 }
 
 template <typename T>
-bool FindNode(TextRange<T> range, const char* tag, TextRange<T>* contents)
+bool FindNode(TextRange<T> range, const T* tag, TextRange<T>* contents)
 {
-    return FindNode(range, tag, contents, (TextRange<T>*)0);
+    TextRange<T> attributes;
+    return FindNode(range, tag, &attributes, contents);
 }
 
 bool ExtractTagValueFloat(TextRange<char> range, const char* tag, float* value)
 {
     TextRange<char> contents;
-    return FindNode(range, tag, &contents) && TryParseFloatValue(contents, value);
+    if (!FindNode(range, tag, &contents))
+        return false;
+    return TryParseFloatValue(contents, value);
 }
 
 bool ExtractTagValueU32(TextRange<char> range, const char* tag, u32* value)
 {
     TextRange<char> contents;
-    return FindNode(range, tag, &contents) && TryParseU32Value(contents, value);
+    if (!FindNode(range, tag, &contents))
+        return false;
+    return TryParseU32Value(contents, value);
 }
 
 bool ExtractTagValueBool(TextRange<char> range, const char* tag, bool* value)
 {
     TextRange<char> contents;
-    return FindNode(range, tag, &contents) && TryParseBoolValue(contents, value);
+    if (!FindNode(range, tag, &contents))
+        return false;
+    return TryParseBoolValue(contents, value);
 }
 
 template TextRange<char> ExtractTagRaw<char>(TextRange<char>&);

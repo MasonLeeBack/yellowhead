@@ -70,10 +70,10 @@ template <typename T>
 bool ExtractTag(TextRange<T>& range, TextRange<T>* tag, TextRange<T>* contents);
 
 template <typename T>
-bool FindNode(TextRange<T> range, const char* tag, TextRange<T>* contents, TextRange<T>* attributes);
+bool FindNode(TextRange<T> range, const T* tag, TextRange<T>* attributes, TextRange<T>* contents);
 
 template <typename T>
-bool FindNode(TextRange<T> range, const char* tag, TextRange<T>* contents);
+bool FindNode(TextRange<T> range, const T* tag, TextRange<T>* contents);
 
 bool ExtractTagValueFloat(TextRange<char> range, const char* tag, float* value);
 bool ExtractTagValueU32(TextRange<char> range, const char* tag, u32* value);
