@@ -72,6 +72,21 @@ TextRange<T> ExtractText(TextRange<T>& range)
     return out;
 }
 
+template <>
+TextRange<tchar_t> ExtractText<tchar_t>(TextRange<tchar_t>& range)
+{
+    const tchar_t* begin = range.Begin;
+    const tchar_t* cur = begin;
+    while (cur < range.End && *cur != '<' && *cur != '>' && *cur != 0)
+        ++cur;
+
+    TextRange<tchar_t> out(begin, cur);
+    if (cur < range.End && *cur != '<')
+        ++cur;
+    range = TextRange<tchar_t>(cur, range.End);
+    return out;
+}
+
 template <typename T>
 void ExtractKeyValueAndAdvance(TextRange<T>& range, TextRange<T>* key, TextRange<T>* value)
 {
