@@ -38,24 +38,22 @@ void ExitPPUThread(u64 retval)
     sys_ppu_thread_exit(retval);
 }
 
-bool JoinPPUThread(THREAD thread, u64* retval)
+bool JoinPPUThread(THREAD t, u64* thread_retval)
 {
-    u64 local_retval;
-    u32 ret = false;
+    u64 temp;
 
-    if (thread == 0)
-        return ret;
-    if (retval == 0)
-        retval = &local_retval;
+    if (t == 0)
+        return false;
+    if (thread_retval == 0)
+        thread_retval = &temp;
 
-    ret = (u32)sys_ppu_thread_join(thread, retval) == 0;
-    return ret;
+    return sys_ppu_thread_join(t, thread_retval) == 0;
 }
 
 bool SetPPUThreadPriority(THREAD thread, int priority)
 {
     int ret = sys_ppu_thread_set_priority(thread, priority);
-    return ret ? false : true;
+    return ret == 0;
 }
 
 void ThreadSleep(int ms)
