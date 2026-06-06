@@ -144,10 +144,10 @@ void ExtractKeyValueAndAdvance(TextRange<T>& range, TextRange<T>* key, TextRange
 template <typename T>
 void ExtractTagNameAndAttributes(TextRange<T> range, TextRange<T>* name, TextRange<T>* attributes)
 {
-    range = Trim(range);
+    TrimLeft(range);
 
     const T* cur = range.Begin;
-    while (cur != range.End && !IsSpaceT(*cur))
+    while (cur != range.End && !IsSpaceT(*cur) && *cur != 0)
         ++cur;
     *name = TextRange<T>(range.Begin, cur);
     *attributes = TextRange<T>(cur, range.End).TrimWhiteQ();
