@@ -13,10 +13,9 @@ class CMMSemaphore;
 typedef CRawVector<char, CAllocatorMMAligned128> ByteArray;
 
 enum ECompressionJobState {
-    CJS_Empty = 0,
-    CJS_Queued = 1,
-    CJS_Working = 2,
-    CJS_Finished = 3,
+    CJS_BEGIN = 0,
+    CJS_WORKING = 1,
+    CJS_DONE = 2,
 };
 
 class CompressionJob : public CBaseCounted {
@@ -62,7 +61,7 @@ public:
     void GetData(void* out, u32 size);
     u16 GetBufferSize() const;
     bool IsCompressed() const;
-    void Finalise();
+    u32 Finalise();
     static void DecompressJob(void* data);
 
 private:
