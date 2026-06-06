@@ -34,8 +34,13 @@ TextRange<T> ExtractTagRaw(TextRange<T>& range)
 {
     const T* begin = range.Begin + 1;
     const T* cur = begin;
-    while (cur < range.End && *cur != '>')
-        ++cur;
+    if (range.End > cur) {
+        do {
+            if (*cur == '>')
+                break;
+            ++cur;
+        } while (range.End > cur);
+    }
     const T* next = cur;
     if (next < range.End)
         ++next;
