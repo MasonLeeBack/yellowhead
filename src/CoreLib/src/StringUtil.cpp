@@ -44,22 +44,23 @@ template <typename T>
 size_t StringCopy(T* dst, const T* src, size_t dst_size)
 {
     const T* start = src;
-    const T* cur = src;
     T* out = dst;
 
     if (dst_size != 0) {
-        while (--dst_size != 0) {
-            T ch = *cur++;
+        do {
+            if (--dst_size == 0)
+                break;
+            T ch = *src++;
             *out++ = ch;
             if (ch == 0)
-                return cur - start - 1;
-        }
+                return src - start - 1;
+        } while (true);
         *out = 0;
     }
 
-    while (*cur++ != 0) {
+    while (*src++ != 0) {
     }
-    return cur - start - 1;
+    return src - start - 1;
 }
 
 template <typename T>
@@ -88,7 +89,10 @@ const wchar_t* MultiByteToWChar_(wchar_t* dst, const char* start, const char* en
     const u8* u8str = (const u8*)start;
     const u8* u8str_end = (const u8*)end;
 
-    if (count != 0 && u8str < u8str_end) {
+    if (count == 0)
+        return dst;
+
+    if (u8str < u8str_end) {
         --count;
         while (count != 0 && u8str < u8str_end) {
             u8 ch = *u8str;
@@ -131,7 +135,10 @@ const char* WCharToMultiByte_(char* dst, const wchar_t* start, const wchar_t* en
 {
     char* out = dst;
 
-    if (count != 0 && start < end) {
+    if (count == 0)
+        return dst;
+
+    if (start < end) {
         --count;
         while (count != 0 && start < end) {
             u32 ch = *start;
