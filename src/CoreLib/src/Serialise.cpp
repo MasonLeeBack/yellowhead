@@ -24,8 +24,10 @@ ReflectReturn SRevision::CheckBranchDescription() const
 void FlattenV2sForSerialisation(float* out, const float* in, u32 count)
 {
     for (u32 i = 0; i != count; ++i) {
-        out[i * 3 + 0] = in[i * 4 + 0];
-        out[i * 3 + 1] = in[i * 4 + 1];
-        out[i * 3 + 2] = in[i * 4 + 2];
+        out[0] = in[0];
+        out[1] = in[1];
+        out[2] = in[2];
+        in += 4;
+        out += 3;
     }
 }
