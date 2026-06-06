@@ -31,6 +31,18 @@ static inline __attribute__((always_inline)) void TrimLeft(TextRange<char>& rang
         ++range.Begin;
 }
 
+static inline __attribute__((always_inline)) bool IsAlphaNumericT(char ch)
+{
+    u8 c = (u8)ch;
+    return (u8)(c - 'a') <= 25 || (u8)(c - 'A') <= 25 || (u8)(c - '0') <= 9;
+}
+
+template <typename T>
+static inline __attribute__((always_inline)) bool IsAlphaNumericT(T ch)
+{
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9');
+}
+
 template <typename T>
 static inline __attribute__((always_inline)) bool EqualsAscii(TextRange<T> range, const char* text)
 {
@@ -90,28 +102,43 @@ TextRange<tchar_t> ExtractText<tchar_t>(TextRange<tchar_t>& range)
 template <typename T>
 void ExtractKeyValueAndAdvance(TextRange<T>& range, TextRange<T>* key, TextRange<T>* value)
 {
-    range = Trim(range);
-    const T* cur = range.Begin;
-    while (cur != range.End && *cur != '=' && !IsSpaceT(*cur))
-        ++cur;
-    *key = TextRange<T>(range.Begin, cur);
-    while (cur != range.End && (*cur == '=' || IsSpaceT(*cur)))
-        ++cur;
-    const T* value_begin = cur;
-    if (cur != range.End && (*cur == '"' || *cur == '\'')) {
-        T quote = *cur++;
-        value_begin = cur;
-        while (cur != range.End && *cur != quote)
-            ++cur;
-        *value = TextRange<T>(value_begin, cur);
-        if (cur != range.End)
-            ++cur;
+    TrimLeft(range);
+    const T* key_begin = range.Begin;
+
+    while (range.Begin < range.End && IsAlphaNumericT(*range.Begin))
+        ++range.Begin;
+
+    const T* key_end = range.Begin;
+    const T* value_begin = range.Begin;
+    const T* value_end = range.Begin;
+
+    if (key_end > key_begin && range.Begin < range.End && *range.Begin == '=') {
+        ++range.Begin;
+        TrimLeft(range);
+
+        value_begin = range.Begin;
+        value_end = range.Begin;
+        if (range.Begin < range.End && (*range.Begin == '"' || *range.Begin == '\'')) {
+            T quote = *range.Begin++;
+            value_begin = range.Begin;
+            while (range.Begin < range.End && *range.Begin != quote)
+                ++range.Begin;
+            value_end = range.Begin;
+            if (range.Begin < range.End)
+                ++range.Begin;
+        } else {
+            while (range.Begin < range.End && !IsSpaceT(*range.Begin))
+                ++range.Begin;
+            value_end = range.Begin;
+        }
     } else {
-        while (cur != range.End && !IsSpaceT(*cur))
-            ++cur;
-        *value = TextRange<T>(value_begin, cur);
+        TrimLeft(range);
+        value_end = range.Begin;
     }
-    range = TextRange<T>(cur, range.End);
+
+    TrimLeft(range);
+    *key = TextRange<T>(key_begin, key_end);
+    *value = TextRange<T>(value_begin, value_end);
 }
 
 template <typename T>
