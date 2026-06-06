@@ -19,6 +19,19 @@ static inline __attribute__((always_inline)) TextRange<T> Trim(TextRange<T> rang
 }
 
 template <typename T>
+static inline __attribute__((always_inline)) void TrimLeft(TextRange<T>& range)
+{
+    while (range.Begin < range.End && IsSpaceT(*range.Begin))
+        ++range.Begin;
+}
+
+static inline __attribute__((always_inline)) void TrimLeft(TextRange<char>& range)
+{
+    while (range.Begin < range.End && (u8)*range.Begin <= ' ')
+        ++range.Begin;
+}
+
+template <typename T>
 static inline __attribute__((always_inline)) bool EqualsAscii(TextRange<T> range, const char* text)
 {
     const T* cur = range.Begin;
@@ -126,28 +139,57 @@ bool ExtractTag(TextRange<T>& range, TextRange<T>* tag, TextRange<T>* contents)
 template <>
 bool ExtractTag<char>(TextRange<char>& range, TextRange<char>* tag, TextRange<char>* attributes, TextRange<char>* contents)
 {
-    TextRange<char> raw = ExtractTagRaw(range);
-    if (raw.Begin == raw.End)
+    if (range.Begin >= range.End || *range.Begin != '<')
         return false;
+
+    TextRange<char> raw = ExtractTagRaw(range);
     ExtractTagNameAndAttributes(raw, tag, attributes);
 
-    const char* cur = range.Begin;
-    while (cur != range.End && *cur != '<')
-        ++cur;
-    *contents = TextRange<char>(range.Begin, cur);
-    range = TextRange<char>(cur, range.End);
+    const char* contents_begin = range.Begin;
+    u32 depth = 0;
+    while (range.Begin < range.End) {
+        if (*range.Begin != '<') {
+            ++range.Begin;
+            continue;
+        }
+
+        const char* contents_end = range.Begin;
+        TextRange<char> raw2 = ExtractTagRaw(range);
+        TextRange<char> tag2;
+        ExtractTagName(raw2, &tag2);
+
+        bool end_tag = false;
+        if (*tag2.Begin == '/') {
+            tag2.Begin++;
+            end_tag = true;
+        }
+
+        if (!tag2.Equals(*tag))
+            continue;
+
+        if (end_tag) {
+            if (depth == 0) {
+                *contents = TextRange<char>(contents_begin, contents_end);
+                return true;
+            }
+            --depth;
+        } else {
+            ++depth;
+        }
+    }
+
+    *contents = TextRange<char>(contents_begin, range.End);
     return true;
 }
 
 template <>
 bool ExtractTag<tchar_t>(TextRange<tchar_t>& range, TextRange<tchar_t>* tag, TextRange<tchar_t>* contents)
 {
-    TextRange<tchar_t> attributes;
-    TextRange<tchar_t> raw = ExtractTagRaw(range);
-    if (raw.Begin == raw.End)
+    if (range.Begin >= range.End || *range.Begin != '<')
         return false;
-    ExtractTagNameAndAttributes(raw, tag, &attributes);
-    *contents = ExtractText(range);
+
+    TextRange<tchar_t> raw = ExtractTagRaw(range);
+    ExtractTagNameAndAttributes(raw, tag, contents);
     return true;
 }
 
@@ -163,13 +205,20 @@ CAttributesIterator<Range>::CAttributesIterator(Range range) :
 template <typename Range>
 bool CAttributesIterator<Range>::Next()
 {
-    if (State == STATE_Done)
-        return false;
-    ExtractKeyValueAndAdvance(RangeValue, &Key, &Value);
-    if (Key.Begin == Key.End) {
+    Range* key = &Key;
+    Range* value = &Value;
+
+    if (RangeValue.Begin >= RangeValue.End) {
         State = STATE_Done;
         return false;
     }
+
+    ExtractKeyValueAndAdvance(RangeValue, key, value);
+    if (key->Begin >= key->End) {
+        State = STATE_Done;
+        return false;
+    }
+
     State = STATE_Running;
     return true;
 }
@@ -187,13 +236,15 @@ CTagIterator<Range>::CTagIterator(Range range) :
 template <typename Range>
 bool CTagIterator<Range>::Next()
 {
-    if (State == STATE_Done)
-        return false;
+    State = STATE_Running;
+    TrimLeft(RangeValue);
+
     if (!ExtractTag(RangeValue, &Tag, &Attributes, &Contents)) {
         State = STATE_Done;
         return false;
     }
-    State = STATE_Running;
+
+    TrimLeft(Contents);
     return true;
 }
 
