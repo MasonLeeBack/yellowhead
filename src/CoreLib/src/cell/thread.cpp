@@ -3,6 +3,7 @@
 
 #include <sys/ppu_thread.h>
 #include <sys/timer.h>
+#include <netex/net.h>
 
 bool GThreadInit;
 sys_ppu_thread_t GGameHostThreadID;
@@ -35,7 +36,10 @@ THREAD CreatePPUThread(THREADPROC threadproc, u64 thread_arg, const char* name, 
 
 void ExitPPUThread(u64 retval)
 {
-    sys_ppu_thread_exit(retval);
+    u64 thread_retval = retval;
+    if (GsnGetLoadRequest)
+        sys_net_free_thread_context(0, 1);
+    sys_ppu_thread_exit(thread_retval);
 }
 
 bool JoinPPUThread(THREAD t, u64* thread_retval)
