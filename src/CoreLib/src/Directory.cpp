@@ -10,9 +10,10 @@ void DirectoryCreate(const CFilePath& src)
         return;
 
     while (slash != 0 && *slash != 0) {
-        slash = strchr(slash, '\\');
+        const char* start = slash;
+        slash = strchr(start, '\\');
         if (slash == 0) {
-            slash = strchr(slash, '/');
+            slash = strchr(start, '/');
             if (slash == 0)
                 return;
         }
@@ -20,9 +21,12 @@ void DirectoryCreate(const CFilePath& src)
         char temp[1024];
         strcpy(temp, src);
 
-        char* next = temp + (slash - (const char*)src);
-        *next = 0;
+        int offset = slash - (const char*)src;
+        temp[offset] = 0;
         DirectoryCreate(temp);
+
+        if (*slash == 0)
+            return;
 
         slash = slash + 1;
     }
