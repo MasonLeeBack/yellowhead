@@ -9,7 +9,7 @@ import sys
 
 from .elf import ElfImage, Section
 from .layout import write_generated, write_manifest
-from .objdiff import dwarf_bss_addresses, dwarf_bss_symbols, inferred_bss_address, source_bss_symbols, source_path_for_obj, write_objdiff
+from .objdiff import dwarf_bss_addresses, dwarf_bss_symbols, inferred_bss_address, source_bss_symbols, source_path_for_obj, unmangle_last_component, write_objdiff
 from .replacements import load_replacements, scan_objects
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -320,6 +320,12 @@ def target_object_path(target_key: str) -> Path:
     return obj
 
 
+def local_static_guard_alias(symbol: str) -> str | None:
+    if not symbol.startswith("_ZGVZ"):
+        return None
+    return unmangle_last_component("_Z" + symbol[4:])
+
+
 def cmd_objdiff_list_bss(rows: list[tuple[str, dict[str, object] | None, dict[str, object]]]) -> int:
     with ElfImage(ORIG) as image:
         for unit_name, _report_unit, _target in rows:
@@ -327,6 +333,18 @@ def cmd_objdiff_list_bss(rows: list[tuple[str, dict[str, object] | None, dict[st
             source_symbols = source_bss_symbols(obj)
             source_by_name = {name: (offset, size) for name, offset, size, _bind in source_symbols}
             source_offsets = {name: offset for name, offset, _size, _bind in source_symbols}
+            source_aliases: dict[str, tuple[str, int, int]] = {}
+            ambiguous_aliases: set[str] = set()
+            for source_name, offset, size, _bind in source_symbols:
+                alias = unmangle_last_component(source_name)
+                if alias is None:
+                    continue
+                if alias in source_aliases:
+                    ambiguous_aliases.add(alias)
+                    continue
+                source_aliases[alias] = (source_name, offset, size)
+            for alias in ambiguous_aliases:
+                source_aliases.pop(alias, None)
             addresses = dwarf_bss_addresses(image, source_path_for_obj(ROOT, obj))
             target_symbols_by_name = dwarf_bss_symbols(image, source_path_for_obj(ROOT, obj))
             if not target_symbols_by_name and not source_symbols:
@@ -334,15 +352,28 @@ def cmd_objdiff_list_bss(rows: list[tuple[str, dict[str, object] | None, dict[st
 
             print(unit_name)
             print(f"  {'status':<7} {'source':>8} {'target':>10} {'size':>6} symbol")
+            matched_source_names: set[str] = set()
+            matched_aliases: set[str] = set()
             for name, addr, size in target_symbols_by_name:
                 source = source_by_name.get(name)
+                source_name = name if source is not None else None
+                if source is None:
+                    aliased = source_aliases.get(name)
+                    if aliased is not None and aliased[2] == size:
+                        source_name, source = aliased[0], (aliased[1], aliased[2])
                 status = "OK" if source is not None else "TODO"
                 source_text = f"0x{source[0]:04x}" if source is not None else "-"
+                if source_name is not None:
+                    matched_source_names.add(source_name)
+                    matched_aliases.add(name)
                 print(f"  {status:<7} {source_text:>8} 0x{addr:08x} {size:6d} {name}")
 
             target_names = {name for name, _addr, _size in target_symbols_by_name}
             for name, offset, size, _bind in source_symbols:
-                if name in target_names:
+                if name in target_names or name in matched_source_names:
+                    continue
+                guard_alias = local_static_guard_alias(name)
+                if guard_alias is not None and guard_alias in matched_aliases:
                     continue
                 addr = inferred_bss_address(addresses, source_offsets, name, offset)
                 target_text = f"0x{addr:08x}" if addr is not None else "-"
