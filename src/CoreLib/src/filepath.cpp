@@ -7,14 +7,55 @@
 
 static bool GGameDataReady;
 static CFilePath GGameDataPath;
+static CFilePath GBaseDir;
+static CFilePath GSysCachePath;
 
-CFilePath GetGameDataPath()
+namespace
 {
-    if (!GGameDataReady) {
-        GGameDataPath.Assign(FPRD_Relative, "gamedata/");
-        GGameDataReady = true;
+    const char* PrependPath(char* dst, const char* filename, const char* path)
+    {
+        char* result = dst;
+
+        int c = (signed char)filename[0];
+        c ^= '/';
+
+        int sign = c >> 31;
+        c = (c ^ sign) - sign;
+
+        filename += ((unsigned int)(c - 1) >> 31);
+
+        unsigned int path_len = strlen(path);
+        char* append_pos = dst + path_len;
+
+        int needs_slash = 0;
+        int slash_offset = 0;
+
+        if (path_len == 0 || path[path_len - 1] != '/')
+        {
+            needs_slash = 1;
+            slash_offset = 1;
+        }
+
+        strcpy(append_pos + slash_offset, filename);
+
+        if (path != dst)
+        {
+            result = dst;
+            strncpy(dst, path, path_len);
+        }
+
+        if (needs_slash != 0)
+        {
+            *append_pos = '/';
+        }
+
+        return result;
     }
-    return GGameDataPath;
+}
+
+CFilePath* GetGameDataPath()
+{
+    return &GGameDataPath;
 }
 
 static void HashBytes(const void* data, u32 size, CHash* hash)
@@ -130,6 +171,152 @@ bool FileOpenTemp(const CFilePath& fp, CFilePath& temp, int& handle)
 {
     char path[255];
     FormatString(path, "%s.tmp", fp.c_str());
-    temp.Assign(FPRD_Relative, path);
+    temp.Assign(FPR_GAMEDATA, path);
     return FileOpen(temp, handle, OM_Write);
+}
+
+void CFilePath::Clear()
+{
+    Assign("");
+}
+
+const char* CFilePath::GetFilename()
+{
+    const char* result = Filepath;
+    
+    const char* slash = strrchr(Filepath, '/');
+    if (slash != NULL)
+        result = slash + 1;
+
+    return result;
+}
+
+const char* CFilePath::GetExtension()
+{
+    char* ext =  strrchr(Filepath, '.');
+
+    if (ext)
+        return ext;
+
+    return "";
+}
+
+void CFilePath::StripExtension()
+{
+    char* ext = strrchr(Filepath, '.');
+
+    if (ext)
+        *ext = '\0';
+}
+
+void CFilePath::StripTrailingSlash()
+{
+    size_t len = strlen(Filepath);
+    size_t last = len - 1;
+
+    if (len == 0)
+        return;
+    
+    char c = Filepath[last];
+    if (c == '/' || c == '\\')
+    {
+        Filepath[last] = '\0';
+    }
+}
+
+void CFilePath::FixSlashesAndCase()
+{
+    for (char* p = Filepath; *p != 0; ++p)
+    {
+        int out = *p;
+
+        if (out == '\\')
+        {
+            *p = '/';
+        }
+        else
+        {
+            if (isupper(out))
+            {
+                out += 0x20;
+            }
+
+            *p = out;
+        }
+    }
+}
+
+void CFilePath::Assign(EFilePathRootDir root_dir, const char* filename)
+{
+    Invalid = false;
+
+    switch (root_dir)
+    {
+    case FPR_GAMEDATA:
+    {
+        CFilePath* game_data_path = GetGameDataPath();
+        PrependPath(Filepath, filename, game_data_path->Filepath);
+        break;
+    }
+    case FPR_BLURAY:
+        PrependPath(Filepath, filename, GBaseDir.Filepath);
+        break;
+    case FPR_SYSCACHE:
+        PrependPath(Filepath, filename, GSysCachePath.Filepath);
+        break;
+    default:
+        Invalid = true;
+        break;
+    }
+}
+
+void CFilePath::Assign(const char* filepath)
+{
+    u32 length = StringCopy(Filepath, filepath, 255);
+    
+    if (length > 254)
+    {
+        Invalid = true;
+        return;
+    }
+
+    Invalid = false;
+}
+
+void CFilePath::Append(const char* str)
+{
+    u8 first = str[0];
+
+    if (Filepath[0] != 0)
+    {
+        u32 len = strlen(Filepath);
+        int ends_with_slash = Filepath[len - 1] == '/';
+
+        switch (first)
+        {
+        default:
+            if (ends_with_slash == 0)
+            {
+                AppendRaw("/");
+            }
+            break;
+
+        case '/':
+            if (ends_with_slash != 0)
+            {
+                str = str + 1;
+            }
+            break;
+        }
+    }
+
+    AppendRaw(str);
+}
+
+void CFilePath::AppendRaw(const char* str)
+{
+    u32 length = StringAppend(Filepath, str, 255);
+
+    if (length > 254)
+        Invalid = true;
 }

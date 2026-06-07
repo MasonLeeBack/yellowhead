@@ -8,7 +8,9 @@
 #include "types.h"
 
 enum EFilePathRootDir {
-    FPRD_Relative = 0
+    FPR_GAMEDATA = 0,
+    FPR_BLURAY = 1,
+    FPR_SYSCACHE = 2
 };
 
 enum EOpenMode {
@@ -23,14 +25,27 @@ public:
         Filepath[0] = 0;
     }
 
-    void Assign(EFilePathRootDir root_dir, const char* path);
+    void Clear();
+
+    const char* GetFilename();
+    const char* GetExtension();
+    void StripExtension();
+    void StripTrailingSlash();
+
+    void FixSlashesAndCase();
+
+    void Assign(EFilePathRootDir root_dir, const char* filename);
+    void Assign(const char* filepath);
+
+    void Append(const char* str);
+    void AppendRaw(const char* str);
 
     operator const char*() const { return Filepath; }
     const char* c_str() const { return Filepath; }
 
 private:
     char Filepath[255];
-    bool Invalid;
+    u8 Invalid;
 };
 
 bool FileStat(const CFilePath& fp, u64& modtime, u64& size);
@@ -57,7 +72,7 @@ bool DirectoryRead(int handle, char* out, u32 out_size);
 bool DirectoryClose(int& handle);
 bool DirectoryCreate(const char* path);
 
-CFilePath GetGameDataPath();
+CFilePath* GetGameDataPath();
 bool FileHash(const CFilePath& fp, CHash* hash);
 bool FileSave(const CFilePath& fp, const void* data, u32 size, CHash* hash);
 bool FileSave(const CFilePath& fp, const CRawVector<char, CAllocatorMMAligned128>& data, CHash* hash);
