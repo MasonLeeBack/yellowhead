@@ -4,31 +4,38 @@
 
 void DirectoryCreate(const CFilePath& src)
 {
-    const char* slash = src;
+    const char* base = src.Filepath;
+    const char* scan = base;
 
-    if (slash == 0 || *slash == 0)
+    if (scan == 0 || *scan == 0)
+    {
         return;
+    }
 
-    while (slash != 0 && *slash != 0) {
-        const char* start = slash;
-        slash = strchr(start, '\\');
-        if (slash == 0) {
-            slash = strchr(start, '/');
-            if (slash == 0)
-                return;
-        }
+    char temp[1024];
+    const char* slash;
+    char zero = 0;
 
-        char temp[1024];
-        strcpy(temp, src);
+    while ((slash = strchr(scan, '\\')) != 0 || (slash = strchr(scan, '/')) != 0)
+    {
+        strcpy(temp, base);
 
-        int offset = slash - (const char*)src;
-        temp[offset] = 0;
-        DirectoryCreate(temp);
+        s32 offset = slash - base;
+        temp[offset] = zero;
+
+        DirectoryCreate((const char*)temp);
 
         if (*slash == 0)
+        {
             return;
+        }
 
-        slash = slash + 1;
+        scan = slash + 1;
+
+        if (scan == 0 || *scan == 0)
+        {
+            return;
+        }
     }
 }
 

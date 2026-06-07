@@ -43,7 +43,7 @@ public:
     operator const char*() const { return Filepath; }
     const char* c_str() const { return Filepath; }
 
-private:
+public:
     char Filepath[255];
     u8 Invalid;
 };
