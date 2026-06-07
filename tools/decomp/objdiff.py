@@ -10,6 +10,7 @@ from elftools.elf.sections import SymbolTableSection
 
 from .elf import ElfImage, Symbol, quote_ld_path
 from .replacements import run_nm
+from .toolchain import ppu_tool
 
 R_PPC64_REL24 = 10
 R_PPC64_ADDR32 = 1
@@ -657,7 +658,6 @@ def build_objdiff_config(root: Path, source_objs: list[Path]) -> dict[str, objec
         )
 
     return {
-        "custom_make": "./tools/objdiff-make",
         "build_base": True,
         "build_target": False,
         "watch_patterns": [
@@ -682,7 +682,7 @@ def build_objdiff_config(root: Path, source_objs: list[Path]) -> dict[str, objec
 
 
 def write_objdiff(root: Path, image: ElfImage, source_objs: list[Path]) -> None:
-    nm = root / "tools" / "ppu-lv2-nm"
+    nm = ppu_tool("ppu-lv2-nm")
     targets = {}
     original_symbols = original_symbol_map(image)
     original_branch_symbols = original_branch_symbol_map(image)

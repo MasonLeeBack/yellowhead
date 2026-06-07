@@ -6,15 +6,16 @@ import json
 import struct
 import subprocess
 import sys
+import os
 
 from .elf import ElfImage, Section
 from .layout import write_generated, write_manifest
 from .objdiff import dwarf_bss_addresses, dwarf_bss_symbols, inferred_bss_address, source_bss_symbols, source_path_for_obj, unmangle_last_component, write_objdiff
 from .replacements import load_replacements, scan_objects
+from .toolchain import ppu_tool
 
 ROOT = Path(__file__).resolve().parents[2]
 ORIG = ROOT / "orig" / "EBOOT.ELF"
-
 
 def cmd_analyze(_args: argparse.Namespace) -> int:
     with ElfImage(ORIG) as image:
@@ -29,7 +30,7 @@ def cmd_analyze(_args: argparse.Namespace) -> int:
 
 def cmd_scan_replacements(args: argparse.Namespace) -> int:
     objects = [Path(p) for p in args.objects]
-    mapping = scan_objects(objects, ROOT / "tools" / "ppu-lv2-nm", ROOT / "build" / "replacement_map.json")
+    mapping = scan_objects(objects, ppu_tool("ppu-lv2-nm"), ROOT / "build" / "replacement_map.json")
     print(f"wrote build/replacement_map.json ({len(mapping)} symbols)")
     return 0
 
@@ -113,7 +114,7 @@ def cmd_finalize(args: argparse.Namespace) -> int:
 def cmd_object_relocs(args: argparse.Namespace) -> int:
     out = ROOT / "build" / "relocs" / "objects.tsv"
     out.parent.mkdir(parents=True, exist_ok=True)
-    readelf = ROOT / "tools" / "ppu-lv2-readelf"
+    readelf = ppu_tool("ppu-lv2-readelf")
     with out.open("w") as fh:
         fh.write("object\trelocations\n")
         for obj in args.objects:
