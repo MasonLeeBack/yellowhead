@@ -1,6 +1,6 @@
-# yellowhead2
+# yellowhead
 
-`yellowhead2` is an example repository for Codex-assisted reverse-engineering and decompilation work on LittleBigPlanet PS3 code. It is intentionally a workbench: source is recovered from symbols, DWARF, disassembly, objdiff feedback, and repeated build checks rather than from original source code.
+`yellowhead` is an example repository for Codex-assisted reverse-engineering and decompilation work on LittleBigPlanet PS3 code. It is intentionally a workbench: source is recovered from symbols, DWARF, disassembly, objdiff feedback, and repeated build checks rather than from original source code.
 
 The goal is a faithful decompilation project, not a pile of convenient lookalikes. Reconstructed structures should live in real headers, functions should match for normal compiler/code-shape reasons, and progress should be measured against the whole original ELF rather than only the files currently under active decompilation.
 
