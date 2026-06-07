@@ -54,7 +54,7 @@ bool FileUnlink(const CFilePath& fp);
 bool FileRename(const CFilePath& src, const CFilePath& dst);
 bool FileCopy(const CFilePath& src, const CFilePath& dst);
 bool FileOpen(const CFilePath& fp, int& handle, EOpenMode mode);
-bool FileClose(int& handle);
+void FileClose(int& handle);
 bool FileResize(int handle, u32 size);
 bool FileResizeNoZeroFill(const CFilePath& fp, u32 size);
 u64 FileRead(int handle, void* out, u64 count);
@@ -69,7 +69,7 @@ bool IsLastErrorFileDoesNotExist();
 
 bool DirectoryOpen(const CFilePath& fp, int& handle);
 bool DirectoryRead(int handle, char* out, u32 out_size);
-bool DirectoryClose(int& handle);
+void DirectoryClose(int& handle);
 bool DirectoryCreate(const char* path);
 
 CFilePath* GetGameDataPath();

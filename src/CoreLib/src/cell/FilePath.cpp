@@ -1,15 +1,12 @@
 #include "filepath.h"
 
-static int GLastError;
+#include <cell/cell_fs.h>
+
+static __thread CellFsErrno GLastError;
 
 bool IsLastErrorOutOfDiskSpace()
 {
-    return false;
-}
-
-bool IsLastErrorFileDoesNotExist()
-{
-    return false;
+    return GLastError == CELL_FS_ERROR_ENOSPC;
 }
 
 bool DirectoryOpen(const CFilePath& fp, int& handle)
@@ -23,10 +20,10 @@ bool DirectoryRead(int handle, char* out, u32 out_size)
     return false;
 }
 
-bool DirectoryClose(int& handle)
+void DirectoryClose(int& handle)
 {
-    handle = 0;
-    return true;
+    GLastError = cellFsClosedir(handle);
+    handle = -1;
 }
 
 bool FileCopy(const CFilePath& src, const CFilePath& dst)
@@ -74,10 +71,13 @@ bool FileResize(int handle, u32 size)
     return false;
 }
 
-bool FileClose(int& handle)
+void FileClose(int& handle)
 {
-    handle = 0;
-    return true;
+    if (handle) {
+        GLastError = cellFsClose(handle);
+    }
+
+    handle = -1;
 }
 
 u64 FileRead(int handle, void* out, u64 count)
@@ -107,7 +107,16 @@ bool DirectoryCreate(const char* path)
 
 u32 FileAttributes(const CFilePath& fp)
 {
-    return 0;
+    CellFsStat st;
+    
+    CellFsErrno ret = cellFsStat(fp.Filepath, &st);
+    GLastError = ret;
+    
+    if (ret == NULL) {
+        return 0;
+    }
+
+    return st.st_mode;
 }
 
 u32 FileAttributes(int handle)
