@@ -26,7 +26,7 @@ enum EDebugChannel {
 
 struct DebugChannelOptions {
     u32 TTY;
-    bool Enabled;
+    u8 Enabled;
     const char* INI;
 };
 
