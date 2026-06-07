@@ -49,7 +49,7 @@ void CAuditState::Initialise(const char* filename)
     }
 
     CFilePath path;
-    path.Assign(FPRD_Relative, filename);
+    path.Assign(FPR_GAMEDATA, filename);
     DirectoryCreate(path);
     LevelResults.Initialise(path);
     LevelResults.Begin("results", '[');
