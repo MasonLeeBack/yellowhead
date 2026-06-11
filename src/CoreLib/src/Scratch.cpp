@@ -4,12 +4,11 @@
 #include "mem_monitor.h"
 
 u8* GOneFrameScratchPad;
+static u32 ScratchHeapMonID;
 u32 GCurScratchPad;
 u32 GLastScratchPadSizeUsed;
 u32 ScratchPadSize;
-
-static u32 ScratchHeapMonID;
-bool GWatchOut;
+s32 GWatchOut;
 
 void ScratchPadClean()
 {
@@ -18,27 +17,36 @@ void ScratchPadClean()
 
 void ScratchPadReset()
 {
-    if (!GWatchOut) {
-        HeapMon::OnSetHighwater(ScratchHeapMonID, GCurScratchPad);
-        if (!GWatchOut)
-            HeapMon::OnContainerReset(ScratchHeapMonID);
+    if (HeapMon::GHeapMonMode < HeapMon::HMM_BUFFERING)
+    {
+        GLastScratchPadSizeUsed = GCurScratchPad;
+        GCurScratchPad = 0;
     }
+    else
+    {
+        HeapMon::OnSetHighwater(ScratchHeapMonID, GCurScratchPad);
+        if (HeapMon::GHeapMonMode >= HeapMon::HMM_BUFFERING)
+            HeapMon::OnContainerReset(ScratchHeapMonID);
 
-    GLastScratchPadSizeUsed = GCurScratchPad;
-    GCurScratchPad = 0;
+        GLastScratchPadSizeUsed = GCurScratchPad;
+        GCurScratchPad = 0;
+    }
 }
 
 bool ScratchPadInit()
 {
+    u32 ContainerID = 0;
+
     GLastScratchPadSizeUsed = 0;
     GCurScratchPad = 0;
-    GOneFrameScratchPad = static_cast<u8*>(GSlabAlloc.ScratchPad.GetPtr());
+
+    GOneFrameScratchPad = (u8*)GSlabAlloc.ScratchPad.GetPtr();
     ScratchPadSize = GSlabAlloc.ScratchPad.GetSize();
 
-    u32 heap_mon_id = 0;
-    if (!GWatchOut)
-        heap_mon_id = HeapMon::AllocateContainerID(GOneFrameScratchPad, ScratchPadSize, "ScratchPad");
-    ScratchHeapMonID = heap_mon_id;
+    if (HeapMon::GHeapMonMode >= HeapMon::HMM_BUFFERING)
+        ContainerID = HeapMon::AllocateContainerID(GSlabAlloc.ScratchPad.GetPtr(), GSlabAlloc.ScratchPad.GetSize(), "ScratchPad");
+
+    ScratchHeapMonID = ContainerID;
 
     return true;
 }

@@ -24,8 +24,11 @@ private:
 
 namespace HeapMon {
 
-enum EHeapMonMode {
-    HMM_DISABLED = 0,
+typedef enum EHeapMonMode {
+    HMM_DISABLED = -1,
+    HMM_BUFFERING = 0x0,
+    HMM_LOG_TO_FILE = 0x1,
+    HMM_NETWORK = 0x2
 };
 
 class CHeapMonServer {
